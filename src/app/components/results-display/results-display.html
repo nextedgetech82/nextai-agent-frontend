@@ -1,0 +1,139 @@
+<div *ngIf="loading" class="text-center py-5">
+  <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem">
+    <span class="visually-hidden">Loading...</span>
+  </div>
+  <p class="mt-3 text-muted">Analyzing your data with AI...</p>
+</div>
+
+<div *ngIf="response && !loading" class="fade-in">
+  <!-- Header -->
+  <div class="card shadow-sm mb-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div class="flex-grow-1">
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <i class="bi bi-chat-dots-fill text-primary"></i>
+            <span class="fw-bold">Query:</span>
+            <span class="text-muted">"{{ response.query }}"</span>
+            <span *ngIf="response.cached" class="badge bg-info">
+              <i class="bi bi-database"></i> Cached
+            </span>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-sm btn-outline-secondary" (click)="downloadAsCSV()">
+            <i class="bi bi-download"></i> CSV
+          </button>
+          <button
+            class="btn btn-sm btn-outline-secondary"
+            (click)="copyToClipboard(response.sqlQuery)"
+          >
+            <i class="bi bi-clipboard"></i> Copy SQL
+          </button>
+        </div>
+      </div>
+
+      <hr />
+
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-table text-secondary"></i>
+            <span>{{ response.rowCount }} rows returned</span>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-clock text-secondary"></i>
+            <span>{{ response.processingTime || 'N/A' }}ms</span>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-calendar text-secondary"></i>
+            <span>{{ response.timestamp | date: 'medium' }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <ul class="nav nav-tabs mb-3">
+    <li class="nav-item">
+      <a
+        *ngIf="hasInsights"
+        class="nav-link"
+        [class.active]="activeTab === 'insights'"
+        (click)="activeTab = 'insights'"
+        style="cursor: pointer"
+      >
+        <i class="bi bi-lightbulb"></i> AI Insights
+      </a>
+    </li>
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        [class.active]="activeTab === 'table'"
+        (click)="activeTab = 'table'"
+        style="cursor: pointer"
+      >
+        <i class="bi bi-table"></i> Data Table
+      </a>
+    </li>
+    <li class="nav-item">
+      <a
+        class="nav-link"
+        [class.active]="activeTab === 'sql'"
+        (click)="activeTab = 'sql'"
+        style="cursor: pointer"
+      >
+        <i class="bi bi-code-slash"></i> Generated SQL
+      </a>
+    </li>
+  </ul>
+
+  <!-- Insights Tab -->
+  <div *ngIf="activeTab === 'insights' && hasInsights" class="card shadow-sm">
+    <div class="card-body">
+      <div class="insights-content" [innerHTML]="formatInsights(response.insights)"></div>
+    </div>
+  </div>
+
+  <!-- Table Tab -->
+  <div *ngIf="activeTab === 'table'" class="card shadow-sm">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-striped table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th *ngFor="let col of getColumns(response.data)" scope="col">
+                {{ col | titlecase }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of response.data">
+              <td *ngFor="let col of getColumns(response.data)">{{ row[col] }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-footer bg-white">
+        <small class="text-muted"
+          >Showing {{ response.data.length }} of {{ response.rowCount }} rows</small
+        >
+      </div>
+    </div>
+  </div>
+
+  <!-- SQL Tab -->
+  <div *ngIf="activeTab === 'sql'" class="card shadow-sm">
+    <div class="card-body">
+      <pre class="mb-3"><code>{{ response.sqlQuery }}</code></pre>
+      <button class="btn btn-sm btn-primary" (click)="copyToClipboard(response.sqlQuery)">
+        <i class="bi bi-clipboard"></i> Copy to Clipboard
+      </button>
+    </div>
+  </div>
+</div>

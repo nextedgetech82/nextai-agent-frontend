@@ -1,0 +1,46 @@
+<div class="login-shell">
+  <div class="login-card">
+    <div class="login-brand">
+      <div class="brand-icon">
+        <i class="bi bi-phone"></i>
+      </div>
+      <h1>Customer Access</h1>
+      <p>Enter your mobile number to load your company chatbot.</p>
+    </div>
+
+    <form
+      [formGroup]="loginForm"
+      (ngSubmit)="submit()"
+      class="login-form"
+      appEnterKeyNavigation
+    >
+      <label for="customerId" class="form-label">Mobile Number</label>
+      <input
+        id="customerId"
+        type="tel"
+        class="form-control form-control-lg"
+        formControlName="customerId"
+        autofocus
+        maxlength="10"
+        placeholder="9327927990"
+      />
+
+      <div class="validation-error" *ngIf="loginForm.get('customerId')?.touched && loginForm.get('customerId')?.invalid">
+        <span *ngIf="loginForm.get('customerId')?.errors?.['required']">Mobile number is required.</span>
+        <span *ngIf="loginForm.get('customerId')?.errors?.['pattern']">Enter a valid 10 digit mobile number.</span>
+      </div>
+
+      <div *ngIf="error" class="alert alert-danger mt-3 mb-0">
+        {{ error }}
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg w-100 mt-4" [disabled]="loading">
+        <span *ngIf="!loading">Continue to Chat</span>
+        <span *ngIf="loading" class="d-inline-flex align-items-center gap-2">
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          Validating...
+        </span>
+      </button>
+    </form>
+  </div>
+</div>

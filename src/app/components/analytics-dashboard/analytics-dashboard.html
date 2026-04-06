@@ -1,0 +1,52 @@
+<div class="container-custom">
+  <!-- Header -->
+  <div class="text-center mb-5">
+    <div class="mb-3">
+      <i class="bi bi-graph-up" style="font-size: 3rem; color: #0d6efd"></i>
+    </div>
+    <h1 class="display-5 fw-bold mb-3">Sales Analytics with AI</h1>
+    <p class="lead text-muted">Ask questions about your sales data in plain English</p>
+    <p class="small text-muted">Powered by DeepSeek AI</p>
+  </div>
+
+  <!-- Query Input -->
+  <app-query-input [isLoading]="loading" (querySubmit)="onQuerySubmit($event)"></app-query-input>
+
+  <!-- Error Display -->
+  <div *ngIf="error" class="alert alert-danger alert-dismissible fade show mt-3" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    {{ error }}
+    <button type="button" class="btn-close" (click)="error = null"></button>
+  </div>
+
+  <!-- Recent Queries -->
+  <div *ngIf="recentQueries.length && !response && !loading" class="card mt-3">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="card-title mb-0"><i class="bi bi-clock-history"></i> Recent Queries</h6>
+        <button class="btn btn-sm btn-outline-danger" (click)="clearRecentQueries()">
+          <i class="bi bi-trash"></i> Clear
+        </button>
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button
+          *ngFor="let query of recentQueries"
+          class="btn btn-sm btn-outline-secondary"
+          (click)="onQuerySubmit({ query, insights: true })"
+        >
+          {{ query | slice: 0 : 60 }}{{ query.length > 60 ? '...' : '' }}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results Display -->
+  <app-results-display [response]="response" [loading]="loading"></app-results-display>
+
+  <!-- Cache Management (Admin) -->
+  <div class="mt-4 text-center" *ngIf="response">
+    <button class="btn btn-sm btn-outline-secondary" (click)="clearCache()">
+      <i class="bi bi-database"></i> Clear Cache
+    </button>
+  </div>
+</div>

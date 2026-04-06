@@ -1,0 +1,158 @@
+<div class="chatbot-container">
+  <div
+    *ngIf="isMobileLayout && showSidebar"
+    class="sidebar-backdrop"
+    (click)="closeSidebar()"
+  ></div>
+
+  <!-- Sidebar -->
+  <div
+    class="chat-sidebar"
+    [class.sidebar-hidden]="!showSidebar"
+    [class.mobile-sidebar]="isMobileLayout"
+    [class.mobile-open]="isMobileLayout && showSidebar"
+  >
+    <div class="sidebar-header">
+      <button class="btn btn-primary w-100" (click)="newChat()">
+        <i class="bi bi-plus-circle"></i> New Chat
+      </button>
+    </div>
+
+    <div class="sidebar-sessions">
+      <div
+        *ngFor="let session of sessions"
+        class="session-item"
+        [class.active]="currentSession?.id === session.id"
+        (click)="switchSession(session.id); closeSidebar()"
+      >
+        <div class="session-info">
+          <i class="bi bi-chat-dots"></i>
+          <div class="session-details">
+            <div class="session-title">{{ session.title }}</div>
+            <div class="session-date">{{ formatDate(session.updatedAt) }}</div>
+          </div>
+        </div>
+        <button class="btn-delete" (click)="deleteSession(session.id, $event)">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="sidebar-footer">
+      <button class="btn btn-outline-danger w-100" (click)="clearAllChats()">
+        <i class="bi bi-trash3"></i> Clear All Chats
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Chat Area -->
+  <div class="chat-main">
+    <!-- Header -->
+    <div class="chat-header">
+      <button class="btn btn-link toggle-sidebar" (click)="toggleSidebar()">
+        <i
+          class="bi"
+          [class.bi-layout-sidebar]="showSidebar"
+          [class.bi-layout-sidebar-inset]="!showSidebar"
+        ></i>
+      </button>
+      <div class="header-title">
+        <i class="bi bi-robot"></i>
+        <span class="header-title-text">Sales Analytics AI Assistant</span>
+      </div>
+      <div class="header-status">
+        <span class="status-dot"></span>
+        <span class="header-status-text">Online</span>
+      </div>
+      <div class="header-actions">
+        <button class="btn btn-outline-primary btn-sm" (click)="goToUsage()">
+          <i class="bi bi-speedometer2"></i> Usage
+        </button>
+        <button class="btn btn-outline-secondary btn-sm logout-button" (click)="logout()">
+          <i class="bi bi-box-arrow-right"></i> Logout
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages Container -->
+    <div class="chat-messages" #chatContainer>
+      <div *ngIf="currentSession?.messages?.length === 0" class="welcome-screen">
+        <div class="welcome-icon">
+          <i class="bi bi-chat-dots-fill"></i>
+        </div>
+        <h3>Welcome to Sales Analytics AI</h3>
+        <p>Ask me anything about your sales data. I can help you with:</p>
+        <div class="feature-list">
+          <div class="feature-item">
+            <i class="bi bi-bar-chart"></i>
+            <span>Sales summaries and trends</span>
+          </div>
+          <div class="feature-item">
+            <i class="bi bi-trophy"></i>
+            <span>Top customers and products</span>
+          </div>
+          <div class="feature-item">
+            <i class="bi bi-map"></i>
+            <span>Regional/State-wise analysis</span>
+          </div>
+          <div class="feature-item">
+            <i class="bi bi-calendar"></i>
+            <span>Month-over-month comparisons</span>
+          </div>
+        </div>
+
+        <div class="suggestions-grid">
+          <h5>Try asking:</h5>
+          <div class="suggestion-buttons">
+            <button
+              *ngFor="let q of suggestedQuestions"
+              class="btn btn-outline-primary suggestion-btn"
+              (click)="useSuggestion(q)"
+            >
+              {{ q }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div *ngFor="let message of currentSession?.messages" class="message-wrapper">
+        <app-chat-message [message]="message"></app-chat-message>
+      </div>
+    </div>
+
+    <!-- Input Area -->
+    <div class="chat-input-area">
+      <form [formGroup]="messageForm" (ngSubmit)="sendMessage()" class="input-form">
+        <div class="input-toolbar">
+          <div class="form-check form-switch">
+            <input
+              id="chat-insights"
+              class="form-check-input"
+              type="checkbox"
+              formControlName="insights"
+            />
+            <label class="form-check-label" for="chat-insights">
+              <i class="bi bi-stars"></i> Insights
+            </label>
+          </div>
+        </div>
+        <div class="input-group">
+          <textarea
+            class="form-control"
+            formControlName="message"
+            placeholder="Type your question here... (e.g., Show last bill date and bill number)"
+            rows="1"
+            (keydown.enter)="$event.preventDefault(); sendMessage()"
+          ></textarea>
+          <button class="btn btn-primary send-button" type="submit" [disabled]="messageForm.invalid">
+            <i class="bi bi-send"></i>
+          </button>
+        </div>
+      </form>
+      <div class="input-hint">
+        <i class="bi bi-info-circle"></i>
+        Press Enter to send
+      </div>
+    </div>
+  </div>
+</div>

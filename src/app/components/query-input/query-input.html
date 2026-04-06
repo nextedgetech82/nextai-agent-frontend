@@ -1,0 +1,86 @@
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form [formGroup]="queryForm" (ngSubmit)="onSubmit()">
+      <div class="mb-3">
+        <label for="query" class="form-label fw-bold">
+          <i class="bi bi-chat-dots"></i> Ask anything about your sales data
+        </label>
+        <textarea
+          id="query"
+          class="form-control query-textarea"
+          formControlName="query"
+          rows="3"
+          placeholder="E.g., Show top 10 customers by sales value, Compare sales this month vs last month, Show state-wise sales summary"
+          [class.is-invalid]="queryForm.get('query')?.invalid && queryForm.get('query')?.touched"
+        ></textarea>
+        <div
+          class="invalid-feedback"
+          *ngIf="queryForm.get('query')?.errors?.['required'] && queryForm.get('query')?.touched"
+        >
+          Query is required
+        </div>
+        <div
+          class="invalid-feedback"
+          *ngIf="queryForm.get('query')?.errors?.['minlength'] && queryForm.get('query')?.touched"
+        >
+          Minimum 3 characters required
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary" [disabled]="queryForm.invalid || isLoading">
+          <span *ngIf="!isLoading"> <i class="bi bi-stars"></i> Analyze with AI </span>
+          <span *ngIf="isLoading">
+            <span
+              class="spinner-border spinner-border-sm me-2"
+              role="status"
+              aria-hidden="true"
+            ></span>
+            Analyzing...
+          </span>
+        </button>
+
+        <button type="button" class="btn btn-outline-secondary" (click)="toggleSuggestions()">
+          <i class="bi bi-lightbulb"></i> Suggestions
+        </button>
+
+        <div class="form-check form-switch d-flex align-items-center ms-auto">
+          <input
+            id="insights"
+            class="form-check-input"
+            type="checkbox"
+            formControlName="insights"
+          />
+          <label class="form-check-label ms-2" for="insights">
+            <i class="bi bi-stars"></i> Insights
+          </label>
+        </div>
+
+        <button
+          type="button"
+          class="btn btn-outline-danger"
+          (click)="clearInput()"
+          *ngIf="queryForm.get('query')?.value"
+        >
+          <i class="bi bi-x-lg"></i> Clear
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Suggestions Panel -->
+<div class="card mt-3" *ngIf="showSuggestions && suggestions.length">
+  <div class="card-body">
+    <h6 class="card-title mb-3"><i class="bi bi-lightbulb"></i> Suggested Questions</h6>
+    <div class="d-flex flex-wrap gap-2">
+      <button
+        *ngFor="let suggestion of suggestions"
+        class="btn btn-sm btn-outline-primary suggestion-chip"
+        (click)="useSuggestion(suggestion)"
+      >
+        {{ suggestion }}
+      </button>
+    </div>
+  </div>
+</div>

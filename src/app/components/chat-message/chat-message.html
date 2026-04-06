@@ -1,0 +1,337 @@
+<div
+  class="chat-message"
+  [class.user-message]="message.type === 'user'"
+  [class.bot-message]="message.type === 'bot'"
+>
+  <div class="message-avatar">
+    <div *ngIf="message.type === 'user'" class="avatar user-avatar">
+      <i class="bi bi-person-circle"></i>
+    </div>
+    <div *ngIf="message.type === 'bot'" class="avatar bot-avatar">
+      <i class="bi bi-robot"></i>
+    </div>
+  </div>
+
+  <div
+    class="message-bubble"
+    [class.user-bubble]="message.type === 'user'"
+    [class.bot-bubble]="message.type === 'bot'"
+  >
+    <!-- Loading State -->
+    <div *ngIf="message.isLoading" class="loading-indicator">
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="ms-2">Thinking...</span>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="message.isError" class="error-message">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      {{ message.content }}
+    </div>
+
+    <!-- Normal Message -->
+    <ng-container *ngIf="!message.isLoading && !message.isError">
+      <div class="message-content">
+        <!-- Text Content -->
+        <div *ngIf="message.type === 'user'" class="user-text">
+          {{ message.content }}
+        </div>
+
+        <div *ngIf="message.type === 'bot'">
+          <!-- Insights -->
+          <div class="insights-text" [innerHTML]="formattedContent"></div>
+
+          <!-- Chart Preview -->
+          <div *ngIf="hasChart" class="chart-card mt-3">
+            <div class="chart-header">
+              <div class="chart-title">
+                <i
+                  class="bi"
+                  [class.bi-bar-chart-line]="isBarChart"
+                  [class.bi-graph-up]="isLineChart"
+                  [class.bi-pie-chart]="isDonutChart"
+                ></i>
+                <span>{{ chartTitle || ((chartValueKey | titlecase) + ' by ' + (chartLabelKey | titlecase)) }}</span>
+              </div>
+              <div class="chart-caption">{{ chartSubtitle || ('Top ' + chartData.length + ' rows') }}</div>
+            </div>
+
+            <div *ngIf="chartTabs.length > 1" class="chart-view-tabs">
+              <button
+                *ngFor="let tab of chartTabs"
+                type="button"
+                class="chart-view-tab"
+                [class.active]="activeChartTab === tab.id"
+                (click)="setChartTab(tab.id)"
+              >
+                {{ tab.label }}
+              </button>
+            </div>
+
+            <div *ngIf="isBarChart" class="chart-bars">
+              <ng-container *ngIf="hasGroupedBarChart; else singleSeriesBarChart">
+                <div class="grouped-bar-legend">
+                  <div *ngFor="let series of chartSeries" class="grouped-bar-legend-item">
+                    <span class="grouped-bar-legend-swatch" [style.backgroundColor]="series.color"></span>
+                    <span>{{ series.key | titlecase }}</span>
+                  </div>
+                </div>
+
+                <div *ngFor="let point of chartSeries[0].points; let pointIndex = index" class="grouped-bar-row">
+                  <div class="chart-label" [title]="point.label">{{ point.label }}</div>
+                  <div class="grouped-bar-series">
+                    <div *ngFor="let series of chartSeries" class="grouped-bar-series-row">
+                      <div class="grouped-bar-series-name">{{ series.key | titlecase }}</div>
+                      <div class="chart-track">
+                        <div
+                          class="chart-bar"
+                          [style.width.%]="series.points[pointIndex].percentage"
+                          [style.background]="series.color"
+                        ></div>
+                      </div>
+                      <div class="chart-value" [title]="series.points[pointIndex].value | number: '1.0-2'">
+                        {{ formatChartValue(series.points[pointIndex].value) }}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </ng-container>
+
+              <ng-template #singleSeriesBarChart>
+                <div *ngFor="let point of chartData" class="chart-row">
+                  <div class="chart-label" [title]="point.label">{{ point.label }}</div>
+                  <div class="chart-track">
+                    <div class="chart-bar" [style.width.%]="point.percentage"></div>
+                  </div>
+                  <div class="chart-value" [title]="point.value | number: '1.0-2'">
+                    {{ formatChartValue(point.value) }}
+                  </div>
+                </div>
+              </ng-template>
+            </div>
+
+            <div *ngIf="isLineChart" class="line-chart-wrapper">
+              <svg
+                class="line-chart"
+                [attr.viewBox]="'0 0 ' + lineChartWidth + ' ' + lineChartHeight"
+                preserveAspectRatio="none"
+              >
+                <path class="line-area" [attr.d]="lineAreaPath"></path>
+                <path class="line-path" [attr.d]="linePath"></path>
+                <circle
+                  *ngFor="let point of linePoints"
+                  class="line-point"
+                  [attr.cx]="point.cx"
+                  [attr.cy]="point.cy"
+                  r="4"
+                ></circle>
+              </svg>
+
+              <div class="line-labels">
+                <div *ngFor="let point of linePoints" class="line-label">
+                  <div class="line-label-name" [title]="point.label">{{ point.label }}</div>
+                  <div class="line-label-value" [title]="point.value | number: '1.0-2'">
+                    {{ formatChartValue(point.value) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div *ngIf="isDonutChart" class="donut-chart-wrapper">
+              <svg class="donut-chart" viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="donut-base" cx="60" cy="60" [attr.r]="donutRadius"></circle>
+                <circle
+                  *ngFor="let segment of donutSegments"
+                  class="donut-segment"
+                  cx="60"
+                  cy="60"
+                  [attr.r]="donutRadius"
+                  [attr.stroke]="segment.color"
+                  [attr.stroke-dasharray]="segment.dashArray"
+                  [attr.stroke-dashoffset]="segment.dashOffset"
+                ></circle>
+              </svg>
+
+              <div class="donut-legend">
+                <div *ngFor="let point of chartData" class="donut-legend-item">
+                  <span class="donut-legend-swatch" [style.backgroundColor]="point.color"></span>
+                  <span class="donut-legend-label" [title]="point.label">{{ point.label }}</span>
+                  <span class="donut-legend-value" [title]="point.value | number: '1.0-2'">
+                    {{ formatChartValue(point.value) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Data Table (Collapsible) -->
+          <div *ngIf="message.data && message.data.length > 0" class="mt-3">
+            <button
+              class="btn btn-sm btn-outline-primary mb-2"
+              (click)="showDataTable = !showDataTable"
+            >
+              <i
+                class="bi"
+                [class.bi-chevron-down]="!showDataTable"
+                [class.bi-chevron-up]="showDataTable"
+              ></i>
+              Show Data Table ({{ message.data.length }} rows)
+            </button>
+
+            <div *ngIf="showDataTable" class="table-shell mt-2">
+              <div *ngIf="tableTabs.length > 1" class="chart-view-tabs table-view-tabs">
+                <button
+                  *ngFor="let tab of tableTabs"
+                  type="button"
+                  class="chart-view-tab"
+                  [class.active]="activeTableTab === tab.id"
+                  (click)="setTableTab(tab.id)"
+                >
+                  {{ tab.label }}
+                </button>
+              </div>
+
+              <div class="table-kpi-strip" *ngIf="summaryMetrics.length">
+                <div *ngFor="let metric of summaryMetrics" class="table-kpi-card">
+                  <div class="table-kpi-label">{{ metric.label }}</div>
+                  <div class="table-kpi-value" [title]="metric.value">{{ metric.value }}</div>
+                </div>
+              </div>
+
+              <div class="table-responsive">
+                <table class="table table-sm table-hover message-data-table">
+                <thead class="table-light">
+                  <tr>
+                    <th
+                      *ngFor="let col of getColumns(tableRows)"
+                      [class.numeric-column]="isNumericColumn(col)"
+                      [class.metric-column]="isMetricColumn(col)"
+                      [class.code-column]="isCodeColumn(col)"
+                      [class.sorted-column]="isSortedBy(col)"
+                      [class.pinned-column]="isPinnedColumn(col)"
+                    >
+                      <button type="button" class="table-sort-button" (click)="sortBy(col)">
+                        <span>{{ col | titlecase }}</span>
+                        <i class="bi" [class]="getSortIcon(col)"></i>
+                      </button>
+                    </th>
+                  </tr>
+                  <tr class="table-filter-row">
+                    <th
+                      *ngFor="let col of getColumns(tableRows)"
+                      [class.numeric-column]="isNumericColumn(col)"
+                      [class.metric-column]="isMetricColumn(col)"
+                      [class.code-column]="isCodeColumn(col)"
+                      [class.pinned-column]="isPinnedColumn(col)"
+                    >
+                      <input
+                        type="text"
+                        class="table-filter-input"
+                        [value]="getColumnFilterValue(col)"
+                        (input)="updateColumnFilter(col, $any($event.target).value)"
+                        [placeholder]="'Filter ' + (col | titlecase)"
+                      />
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let row of paginatedRows; let rowIndex = index">
+                    <td
+                      *ngFor="let col of getColumns(tableRows)"
+                      [class.numeric-column]="isNumericColumn(col)"
+                      [class.metric-column]="isMetricColumn(col)"
+                      [class.code-column]="isCodeColumn(col)"
+                      [class.negative-value]="isNegativeValue(row[col], col)"
+                      [class.expandable-column]="isExpandableColumn(col)"
+                      [class.pinned-column]="isPinnedColumn(col)"
+                    >
+                      <button
+                        *ngIf="shouldTruncateCell(row[col], col); else plainCell"
+                        type="button"
+                        class="table-cell-toggle"
+                        [class.expanded]="isCellExpanded(rowIndex, col)"
+                        (click)="toggleCellExpansion(rowIndex, col)"
+                        [title]="isCellExpanded(rowIndex, col) ? 'Collapse' : row[col]"
+                      >
+                        {{ formatTableCell(row[col], col) }}
+                      </button>
+                      <ng-template #plainCell>
+                        <span [title]="row[col]">{{ formatTableCell(row[col], col) }}</span>
+                      </ng-template>
+                    </td>
+                  </tr>
+                </tbody>
+                </table>
+              </div>
+              <div *ngIf="sortedRows.length > pageSize" class="table-pagination">
+                <div class="table-pagination-summary">
+                  Showing {{ pageStartRow }}-{{ pageEndRow }} of {{ sortedRows.length }} rows
+                </div>
+                <div class="table-pagination-controls">
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    (click)="previousPage()"
+                    [disabled]="currentPage === 1"
+                  >
+                    <i class="bi bi-chevron-left"></i>
+                    Prev
+                  </button>
+                  <span class="table-pagination-page">Page {{ currentPage }} / {{ totalPages }}</span>
+                  <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    (click)="nextPage()"
+                    [disabled]="currentPage === totalPages"
+                  >
+                    Next
+                    <i class="bi bi-chevron-right"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SQL Query (Collapsible) -->
+          <div *ngIf="message.sqlQuery" class="mt-3">
+            <button class="btn btn-sm btn-outline-secondary" (click)="expandedSql = !expandedSql">
+              <i
+                class="bi"
+                [class.bi-chevron-down]="!expandedSql"
+                [class.bi-chevron-up]="expandedSql"
+              ></i>
+              View SQL Query
+            </button>
+
+            <div *ngIf="expandedSql" class="mt-2">
+              <pre class="sql-preview"><code>{{ message.sqlQuery }}</code></pre>
+              <button class="btn btn-sm btn-link" (click)="copyToClipboard(message.sqlQuery!)">
+                <i class="bi bi-clipboard"></i> Copy
+              </button>
+            </div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div *ngIf="message.data && message.data.length > 0" class="mt-3">
+            <button class="table-export-button" (click)="downloadAsCSV()">
+              <span class="table-export-icon">
+                <i class="bi bi-download"></i>
+              </span>
+              <span class="table-export-copy">
+                <span class="table-export-title">Export CSV</span>
+                <span class="table-export-subtitle">Download current result data</span>
+              </span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timestamp -->
+      <div class="message-time">
+        {{ formatDate(message.timestamp) }}
+      </div>
+    </ng-container>
+  </div>
+</div>
