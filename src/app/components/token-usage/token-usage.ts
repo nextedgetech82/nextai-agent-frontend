@@ -96,7 +96,8 @@ export class TokenUsageComponent implements OnInit {
 
   private normalizeUsageResponse(response: Partial<TokenUsageResponse>): TokenUsageResponse {
     const tokenLimits = response.token_limits ?? ({} as Partial<TokenLimits>);
-    const usageSummary = response.usage_summary ?? response.statistics ?? ({} as Partial<UsageSummary>);
+    const usageSummary =
+      response.usage_summary ?? response.statistics ?? ({} as Partial<UsageSummary>);
 
     return {
       success: Boolean(response.success),
@@ -105,16 +106,8 @@ export class TokenUsageComponent implements OnInit {
         monthly_limit: Number(tokenLimits.monthly_limit ?? 0),
         used_this_month: Number(tokenLimits.used_this_month ?? 0),
         balance_tokens: Number(tokenLimits.balance_tokens ?? 0),
-        usage_percent: Number(
-          tokenLimits.usage_percent ??
-            tokenLimits.usage_percentage ??
-            0,
-        ),
-        usage_percentage: Number(
-          tokenLimits.usage_percentage ??
-            tokenLimits.usage_percent ??
-            0,
-        ),
+        usage_percent: Number(tokenLimits.usage_percent ?? tokenLimits.usage_percentage ?? 0),
+        usage_percentage: Number(tokenLimits.usage_percentage ?? tokenLimits.usage_percent ?? 0),
       },
       usage_summary: {
         total_queries: Number(usageSummary.total_queries ?? 0),
@@ -139,7 +132,9 @@ export class TokenUsageComponent implements OnInit {
         last_query_date: usageSummary.last_query_date ?? '',
       },
       daily_usage: (response.daily_usage ?? []).map((entry) => this.normalizeDailyUsage(entry)),
-      recent_queries: (response.recent_queries ?? []).map((entry) => this.normalizeRecentQuery(entry)),
+      recent_queries: (response.recent_queries ?? []).map((entry) =>
+        this.normalizeRecentQuery(entry),
+      ),
       reset_action: response.reset_action
         ? {
             can_reset: Boolean(response.reset_action.can_reset),
@@ -158,7 +153,9 @@ export class TokenUsageComponent implements OnInit {
     };
   }
 
-  private normalizeRecentQuery(entry: Partial<RecentQuery> & { cost?: number; tokens_used?: number }): RecentQuery {
+  private normalizeRecentQuery(
+    entry: Partial<RecentQuery> & { cost?: number; tokens_used?: number },
+  ): RecentQuery {
     return {
       id: Number(entry.id ?? 0),
       query_text: entry.query_text ?? '',
