@@ -26,6 +26,13 @@ interface DonutSegment extends ChartDatum {
   dashOffset: string;
 }
 
+interface LineSeriesDatum {
+  color: string;
+  key: string;
+  path: string;
+  points: { cx: number; cy: number; label: string; value: number }[];
+}
+
 interface SummaryMetric {
   label: string;
   value: string;
@@ -48,6 +55,68 @@ interface ResolvedChart {
 }
 
 const CHART_COLORS = ['#0d6efd', '#20c997', '#fd7e14', '#6f42c1', '#dc3545', '#198754', '#6610f2', '#ffc107'];
+const AGGREGATABLE_METRIC_TOKENS = [
+  'qty',
+  'quantity',
+  'pcs',
+  'piece',
+  'pieces',
+  'meter',
+  'meters',
+  'mtr',
+  'mtrs',
+  'amount',
+  'amt',
+  'discamt',
+  'discamt2',
+  'discamt3',
+  'addamt',
+  'addamt2',
+  'taxablevalue',
+  'taxableamt',
+  'sgstamt',
+  'cgstamt',
+  'igstamt',
+  'finalamt',
+  'grossamt',
+  'netamt',
+  'retamt',
+  'recamt',
+  'djvamt',
+  'cjavamt',
+  'dramt',
+  'cramt',
+  'adjamt',
+  'sale',
+  'sales',
+  'purchase',
+  'return',
+  'discount',
+  'tax',
+  'value',
+  'gross',
+  'net',
+  'final',
+  'receipt',
+  'receivable',
+];
+const NON_AGGREGATABLE_NUMBER_TOKENS = [
+  'id',
+  'code',
+  'orderno',
+  'ordernumber',
+  'serialno',
+  'srno',
+  'billno',
+  'billnumber',
+  'voucherno',
+  'voucherno',
+  'docno',
+  'documentno',
+  'challanno',
+  'invoiceno',
+  'companycode',
+];
 
 @Component({
   selector: 'app-chat-message',
@@ -76,6 +145,9 @@ export class ChatMessageComponent implements OnInit, OnChanges {
   chartType: AnalyticsChartType | null = null;
   chartData: ChartDatum[] = [];
   chartSeries: ChartSeriesDatum[] = [];
+  selectedChartSeriesKeys = new Set<string>();
+  supportedChartTypes: AnalyticsChartType[] = [];
+  selectedChartTypeOverride: AnalyticsChartType | null = null;
   chartLabelKey: string | null = null;
   chartValueKey: string | null = null;
   chartTitle = '';
@@ -83,6 +155,7 @@ export class ChatMessageComponent implements OnInit, OnChanges {
   linePath = '';
   lineAreaPath = '';
   linePoints: { cx: number; cy: number; label: string; value: number }[] = [];
+  lineSeries: LineSeriesDatum[] = [];
   donutSegments: DonutSegment[] = [];
   donutCircumference = 2 * Math.PI * 42;
   donutRadius = 42;
@@ -106,7 +179,43 @@ export class ChatMessageComponent implements OnInit, OnChanges {
   }
 
   get hasGroupedBarChart(): boolean {
+    return this.chartSeries.length > 0;
+  }
+
+  get hasSeriesSelector(): boolean {
     return this.chartSeries.length > 1;
+  }
+
+  get hasChartTypeSelector(): boolean {
+    return this.supportedChartTypes.length > 1;
+  }
+
+  get visibleChartSeries(): ChartSeriesDatum[] {
+    if (!this.chartSeries.length) {
+      return [];
+    }
+
+    const visibleSeries = this.chartSeries.filter((series) =>
+      this.selectedChartSeriesKeys.has(series.key),
+    );
+
+    return visibleSeries.length ? visibleSeries : [this.chartSeries[0]];
+  }
+
+  get visibleLineSeries(): LineSeriesDatum[] {
+    if (!this.lineSeries.length) {
+      return [];
+    }
+
+    const visibleSeries = this.lineSeries.filter((series) =>
+      this.selectedChartSeriesKeys.has(series.key),
+    );
+
+    return visibleSeries.length ? visibleSeries : [this.lineSeries[0]];
+  }
+
+  get hasMultiSeriesLineChart(): boolean {
+    return this.isLineChart && this.lineSeries.length > 0;
   }
 
   get isLineChart(): boolean {
@@ -231,13 +340,24 @@ export class ChatMessageComponent implements OnInit, OnChanges {
       return;
     }
 
-    this.applyResolvedChart(resolvedChart);
+    this.supportedChartTypes = this.getSupportedChartTypes(resolvedChart);
+    const chartType =
+      this.selectedChartTypeOverride && this.supportedChartTypes.includes(this.selectedChartTypeOverride)
+        ? this.selectedChartTypeOverride
+        : resolvedChart.type;
+
+    this.applyResolvedChart({
+      ...resolvedChart,
+      type: chartType,
+    });
   }
 
   private resetChartState(): void {
     this.chartType = null;
     this.chartData = [];
     this.chartSeries = [];
+    this.selectedChartSeriesKeys.clear();
+    this.supportedChartTypes = [];
     this.chartLabelKey = null;
     this.chartValueKey = null;
     this.chartTitle = '';
@@ -245,6 +365,7 @@ export class ChatMessageComponent implements OnInit, OnChanges {
     this.linePath = '';
     this.lineAreaPath = '';
     this.linePoints = [];
+    this.lineSeries = [];
     this.donutSegments = [];
   }
 
@@ -256,6 +377,11 @@ export class ChatMessageComponent implements OnInit, OnChanges {
     this.chartSubtitle = resolvedChart.subtitle ?? '';
 
     if (resolvedChart.series?.length) {
+      if (this.chartType === 'line') {
+        this.buildMultiLineChart(resolvedChart.series);
+        return;
+      }
+
       this.buildGroupedBarChart(resolvedChart.series);
       return;
     }
@@ -284,6 +410,7 @@ export class ChatMessageComponent implements OnInit, OnChanges {
   setChartTab(tabId: string): void {
     if (this.activeChartTab !== tabId) {
       this.activeChartTab = tabId;
+      this.selectedChartTypeOverride = null;
       this.buildChartState();
     }
   }
@@ -294,6 +421,36 @@ export class ChatMessageComponent implements OnInit, OnChanges {
       this.currentPage = 1;
       this.expandedCells.clear();
     }
+  }
+
+  toggleChartSeries(seriesKey: string): void {
+    if (this.selectedChartSeriesKeys.has(seriesKey)) {
+      if (this.selectedChartSeriesKeys.size === 1) {
+        return;
+      }
+
+      this.selectedChartSeriesKeys.delete(seriesKey);
+      return;
+    }
+
+    this.selectedChartSeriesKeys.add(seriesKey);
+  }
+
+  setChartType(chartType: AnalyticsChartType): void {
+    if (!this.supportedChartTypes.includes(chartType)) {
+      return;
+    }
+
+    this.selectedChartTypeOverride = chartType;
+    this.buildChartState();
+  }
+
+  getChartTypeLabel(chartType: AnalyticsChartType): string {
+    if (chartType === 'donut') {
+      return 'Pie';
+    }
+
+    return this.titlecase(chartType);
   }
 
   private normalizeExplicitChart(chart?: AnalyticsChart): ResolvedChart | null {
@@ -327,7 +484,10 @@ export class ChatMessageComponent implements OnInit, OnChanges {
     }
 
     const type = this.normalizeChartType(chartConfig.chartType);
-    const labelKey = this.findColumnKey(rows, chartConfig.xAxis);
+    const labelKey = this.getPreferredChartLabelKey(
+      rows,
+      this.findColumnKey(rows, chartConfig.xAxis),
+    );
     const valueKey = this.findColumnKey(rows, chartConfig.yAxis);
 
     if (!type || !labelKey || !valueKey) {
@@ -371,23 +531,31 @@ export class ChatMessageComponent implements OnInit, OnChanges {
         (row) => Number.isFinite(this.toNumericValue(row?.[column])),
       ),
     );
+    const aggregatableNumericColumns = this.getAggregatableNumericColumns(columns);
+    const chartNumericColumns =
+      aggregatableNumericColumns.length > 0
+        ? aggregatableNumericColumns
+        : numericColumns.filter((column) => !this.isNonAggregatableNumberColumn(column));
     const labelColumns = columns.filter((column) =>
       rows.some((row) => this.isLabelLike(row?.[column])),
     );
 
     const labelKey =
-      labelColumns.find((column) => !numericColumns.includes(column)) ||
-      labelColumns[0] ||
-      columns.find((column) => !numericColumns.includes(column));
-    const valueKey = numericColumns[0];
+      this.getPreferredChartLabelKey(
+        rows,
+        labelColumns.find((column) => !chartNumericColumns.includes(column)) ||
+          labelColumns[0] ||
+          columns.find((column) => !chartNumericColumns.includes(column)),
+      );
+    const valueKey = chartNumericColumns[0];
 
     if (!labelKey || !valueKey) {
       return null;
     }
 
-    if (numericColumns.length > 1) {
+    if (chartNumericColumns.length > 1) {
       const limitedRows = rows.slice(0, this.isDateLikeColumn(labelKey) ? 12 : 8);
-      const series = numericColumns
+      const series = chartNumericColumns
         .map((column) => ({
           key: column,
           points: limitedRows
@@ -402,7 +570,7 @@ export class ChatMessageComponent implements OnInit, OnChanges {
       if (series.length >= 2) {
         return {
           type: 'bar',
-          title: numericColumns.map((column) => this.titlecase(column)).join(' vs '),
+          title: chartNumericColumns.map((column) => this.titlecase(column)).join(' vs '),
           subtitle: `Grouped by ${this.titlecase(labelKey)}`,
           labelKey,
           valueKey,
@@ -501,6 +669,59 @@ export class ChatMessageComponent implements OnInit, OnChanges {
     this.lineAreaPath = `${this.linePath} L ${lastPoint.cx} ${height - bottom} L ${firstPoint.cx} ${height - bottom} Z`;
   }
 
+  private buildMultiLineChart(series: { key: string; points: AnalyticsChartPoint[] }[]): void {
+    const width = this.lineChartWidth;
+    const height = this.lineChartHeight;
+    const left = 12;
+    const right = 12;
+    const top = 14;
+    const bottom = 26;
+    const maxValue = Math.max(...series.flatMap((entry) => entry.points.map((point) => point.value)));
+
+    if (!Number.isFinite(maxValue) || maxValue <= 0) {
+      return;
+    }
+
+    this.chartSeries = series.map((entry, index) => ({
+      key: entry.key,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+      points: entry.points.map((point) => ({
+        label: point.label,
+        value: point.value,
+        color: CHART_COLORS[index % CHART_COLORS.length],
+        percentage: Math.max((point.value / maxValue) * 100, 4),
+      })),
+    }));
+
+    this.selectedChartSeriesKeys = new Set(this.chartSeries.map((entry) => entry.key));
+
+    const stepX =
+      this.chartSeries[0]?.points.length && this.chartSeries[0].points.length > 1
+        ? (width - left - right) / (this.chartSeries[0].points.length - 1)
+        : 0;
+
+    this.lineSeries = this.chartSeries.map((seriesEntry) => {
+      const points = seriesEntry.points.map((point, index) => {
+        const cx = left + index * stepX;
+        const normalized = maxValue === 0 ? 0 : point.value / maxValue;
+        const cy = height - bottom - normalized * (height - top - bottom);
+
+        return { cx, cy, label: point.label, value: point.value };
+      });
+
+      const path = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.cx} ${point.cy}`).join(' ');
+
+      return {
+        key: seriesEntry.key,
+        color: seriesEntry.color,
+        path,
+        points,
+      };
+    });
+
+    this.linePoints = this.lineSeries[0]?.points ?? [];
+  }
+
   private buildGroupedBarChart(series: { key: string; points: AnalyticsChartPoint[] }[]): void {
     const maxValue = Math.max(
       ...series.flatMap((entry) => entry.points.map((point) => point.value)),
@@ -520,6 +741,8 @@ export class ChatMessageComponent implements OnInit, OnChanges {
         percentage: Math.max((point.value / maxValue) * 100, 4),
       })),
     }));
+
+    this.selectedChartSeriesKeys = new Set(this.chartSeries.map((entry) => entry.key));
   }
 
   private buildDonutChart(): void {
@@ -543,6 +766,37 @@ export class ChatMessageComponent implements OnInit, OnChanges {
     });
   }
 
+  private getSupportedChartTypes(resolvedChart: ResolvedChart): AnalyticsChartType[] {
+    const supportedTypes = new Set<AnalyticsChartType>(['bar']);
+
+    if (resolvedChart.series?.length) {
+      if (
+        resolvedChart.labelKey &&
+        (this.isDateLikeColumn(resolvedChart.labelKey) ||
+          resolvedChart.points.every((point) => this.isDateLikeLabel(point.label)))
+      ) {
+        supportedTypes.add('line');
+      }
+    } else {
+      if (
+        resolvedChart.labelKey &&
+        (this.isDateLikeColumn(resolvedChart.labelKey) ||
+          resolvedChart.points.every((point) => this.isDateLikeLabel(point.label)))
+      ) {
+        supportedTypes.add('line');
+      }
+
+      if (resolvedChart.points.length >= 2 && resolvedChart.points.length <= 8) {
+        supportedTypes.add('donut');
+      }
+    }
+
+    supportedTypes.add(resolvedChart.type);
+
+    const orderedTypes: AnalyticsChartType[] = ['bar', 'line', 'donut'];
+    return orderedTypes.filter((type) => supportedTypes.has(type));
+  }
+
   private findColumnKey(rows: any[], requestedKey?: string): string | null {
     if (!requestedKey || !rows.length) {
       return null;
@@ -561,6 +815,31 @@ export class ChatMessageComponent implements OnInit, OnChanges {
       columns.find((column) => column.replace(/[_\s-]+/g, '').toLowerCase() === normalizedRequestedKey.replace(/[_\s-]+/g, '')) ??
       null
     );
+  }
+
+  private getPreferredChartLabelKey(rows: any[], labelKey: string | null | undefined): string | null {
+    if (!labelKey) {
+      return null;
+    }
+
+    const sampleRow = rows.find((row) => row && typeof row === 'object');
+    if (!sampleRow) {
+      return labelKey;
+    }
+
+    const columns = Object.keys(sampleRow);
+    const normalizedLabelKey = this.normalizeColumnKey(labelKey);
+    const companyNameColumn = columns.find((column) => this.normalizeColumnKey(column) === 'companyname');
+
+    if (normalizedLabelKey === 'companyid' && companyNameColumn) {
+      return companyNameColumn;
+    }
+
+    if (normalizedLabelKey !== 'companyname' && companyNameColumn && columns.some((column) => this.normalizeColumnKey(column) === 'companyid')) {
+      return labelKey;
+    }
+
+    return labelKey;
   }
 
   private pickHeuristicChartType(labelKey: string, points: AnalyticsChartPoint[]): AnalyticsChartType {
@@ -624,7 +903,44 @@ export class ChatMessageComponent implements OnInit, OnChanges {
       return '';
     }
 
+    const formattedDate = this.formatDateLikeValue(value);
+    if (formattedDate) {
+      return formattedDate;
+    }
+
     return String(value).trim();
+  }
+
+  private formatDateLikeValue(value: unknown): string | null {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return this.formatDisplayDate(value);
+    }
+
+    if (typeof value !== 'string') {
+      return null;
+    }
+
+    const trimmedValue = value.trim();
+    if (!trimmedValue || Number.isNaN(Date.parse(trimmedValue))) {
+      return null;
+    }
+
+    const looksLikeIsoDate =
+      /^\d{4}-\d{2}-\d{2}(?:[tT ].*)?$/.test(trimmedValue) ||
+      /^\d{4}\/\d{2}\/\d{2}(?: .*)?$/.test(trimmedValue);
+
+    return looksLikeIsoDate ? this.formatDisplayDate(trimmedValue) : null;
+  }
+
+  private formatDisplayDate(value: string | Date): string {
+    return new Intl.DateTimeFormat('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: '2-digit',
+      timeZone: 'UTC',
+    })
+      .format(new Date(value))
+      .replace(/\s+/g, '-');
   }
 
   private titlecase(value: string): string {
@@ -667,7 +983,7 @@ export class ChatMessageComponent implements OnInit, OnChanges {
 
     const metrics: SummaryMetric[] = [{ label: 'Rows', value: String(rows.length) }];
     const columns = this.getColumns(rows);
-    const numericColumns = columns.filter((column) => this.isNumericColumn(column));
+    const numericColumns = this.getAggregatableNumericColumns(columns);
 
     for (const column of numericColumns.slice(0, 2)) {
       const total = rows.reduce((sum, row) => {
@@ -737,13 +1053,45 @@ export class ChatMessageComponent implements OnInit, OnChanges {
   }
 
   isMetricColumn(column: string): boolean {
-    const normalized = column.toLowerCase();
-    return this.isNumericColumn(column) && ['amount', 'sale', 'sales', 'total', 'value', 'balance'].some((token) => normalized.includes(token));
+    return this.isAggregatableMetricColumn(column);
   }
 
   isCodeColumn(column: string): boolean {
     const normalized = column.toLowerCase();
     return ['id', 'code', 'uuid', 'ref', 'reference'].some((token) => normalized.includes(token));
+  }
+
+  private getAggregatableNumericColumns(columns: string[]): string[] {
+    const aggregatableColumns = columns.filter((column) => this.isAggregatableMetricColumn(column));
+    if (aggregatableColumns.length) {
+      return aggregatableColumns;
+    }
+
+    return columns.filter(
+      (column) => this.isNumericColumn(column) && !this.isNonAggregatableNumberColumn(column),
+    );
+  }
+
+  private isAggregatableMetricColumn(column: string): boolean {
+    if (!this.isNumericColumn(column)) {
+      return false;
+    }
+
+    const normalized = this.normalizeColumnKey(column);
+    return AGGREGATABLE_METRIC_TOKENS.some((token) => normalized.includes(token));
+  }
+
+  private isNonAggregatableNumberColumn(column: string): boolean {
+    if (!this.isNumericColumn(column)) {
+      return false;
+    }
+
+    const normalized = this.normalizeColumnKey(column);
+    return NON_AGGREGATABLE_NUMBER_TOKENS.some((token) => normalized.includes(token));
+  }
+
+  private normalizeColumnKey(column: string): string {
+    return column.replace(/[\s_-]+/g, '').toLowerCase();
   }
 
   hasNegativeValues(column: string): boolean {
@@ -802,6 +1150,11 @@ export class ChatMessageComponent implements OnInit, OnChanges {
   formatTableCell(value: unknown, column: string): string {
     if (value === null || value === undefined) {
       return '';
+    }
+
+    const formattedDate = this.formatDateLikeValue(value);
+    if (formattedDate) {
+      return formattedDate;
     }
 
     if (this.isNumericColumn(column)) {

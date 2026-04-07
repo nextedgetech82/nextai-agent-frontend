@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewChecked, ChangeDetectorRef, Component, ElementRef, HostListener, NgZone, OnInit, ViewChild, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, HostListener, NgZone, OnInit, ViewChild, inject } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { ChatMessageComponent } from '../chat-message/chat-message';
@@ -13,7 +13,7 @@ import { CustomerAuthService } from '../../services/customer-auth.service';
   templateUrl: './chatbot.html',
   styleUrls: ['./chatbot.css'],
 })
-export class ChatbotComponent implements OnInit, AfterViewChecked {
+export class ChatbotComponent implements OnInit {
   @ViewChild('chatContainer') private chatContainer!: ElementRef;
 
   private fb = inject(FormBuilder);
@@ -50,6 +50,8 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
 
     this.chatbotService.currentSession$.subscribe((session) => {
       this.ngZone.run(() => {
+        const previousSessionId = this.currentSession?.id ?? null;
+        const previousMessageCount = this.currentSession?.messages?.length ?? 0;
         this.currentSession = session
           ? {
               ...session,
@@ -57,7 +59,15 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
             }
           : null;
         this.cdr.detectChanges();
-        this.scrollToBottom();
+
+        const nextSessionId = this.currentSession?.id ?? null;
+        const nextMessageCount = this.currentSession?.messages?.length ?? 0;
+        const sessionChanged = previousSessionId !== nextSessionId;
+        const messageCountChanged = previousMessageCount !== nextMessageCount;
+
+        if (sessionChanged || messageCountChanged) {
+          this.scrollToBottom();
+        }
       });
     });
 
@@ -75,10 +85,6 @@ export class ChatbotComponent implements OnInit, AfterViewChecked {
     if (this.sessions.length === 0) {
       this.newChat();
     }
-  }
-
-  ngAfterViewChecked() {
-    this.scrollToBottom();
   }
 
   newChat(): void {

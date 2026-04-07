@@ -70,19 +70,44 @@
               </button>
             </div>
 
+            <div *ngIf="hasChartTypeSelector" class="chart-type-selector">
+              <button
+                *ngFor="let chartTypeOption of supportedChartTypes"
+                type="button"
+                class="chart-type-chip"
+                [class.active]="chartType === chartTypeOption"
+                (click)="setChartType(chartTypeOption)"
+              >
+                {{ getChartTypeLabel(chartTypeOption) }}
+              </button>
+            </div>
+
             <div *ngIf="isBarChart" class="chart-bars">
               <ng-container *ngIf="hasGroupedBarChart; else singleSeriesBarChart">
+                <div *ngIf="hasSeriesSelector" class="chart-series-selector">
+                  <button
+                    *ngFor="let series of chartSeries"
+                    type="button"
+                    class="chart-series-chip"
+                    [class.active]="selectedChartSeriesKeys.has(series.key)"
+                    (click)="toggleChartSeries(series.key)"
+                  >
+                    <span class="chart-series-chip-dot" [style.backgroundColor]="series.color"></span>
+                    <span>{{ series.key | titlecase }}</span>
+                  </button>
+                </div>
+
                 <div class="grouped-bar-legend">
-                  <div *ngFor="let series of chartSeries" class="grouped-bar-legend-item">
+                  <div *ngFor="let series of visibleChartSeries" class="grouped-bar-legend-item">
                     <span class="grouped-bar-legend-swatch" [style.backgroundColor]="series.color"></span>
                     <span>{{ series.key | titlecase }}</span>
                   </div>
                 </div>
 
-                <div *ngFor="let point of chartSeries[0].points; let pointIndex = index" class="grouped-bar-row">
+                <div *ngFor="let point of visibleChartSeries[0].points; let pointIndex = index" class="grouped-bar-row">
                   <div class="chart-label" [title]="point.label">{{ point.label }}</div>
                   <div class="grouped-bar-series">
-                    <div *ngFor="let series of chartSeries" class="grouped-bar-series-row">
+                    <div *ngFor="let series of visibleChartSeries" class="grouped-bar-series-row">
                       <div class="grouped-bar-series-name">{{ series.key | titlecase }}</div>
                       <div class="chart-track">
                         <div
@@ -113,30 +138,83 @@
             </div>
 
             <div *ngIf="isLineChart" class="line-chart-wrapper">
-              <svg
-                class="line-chart"
-                [attr.viewBox]="'0 0 ' + lineChartWidth + ' ' + lineChartHeight"
-                preserveAspectRatio="none"
-              >
-                <path class="line-area" [attr.d]="lineAreaPath"></path>
-                <path class="line-path" [attr.d]="linePath"></path>
-                <circle
-                  *ngFor="let point of linePoints"
-                  class="line-point"
-                  [attr.cx]="point.cx"
-                  [attr.cy]="point.cy"
-                  r="4"
-                ></circle>
-              </svg>
+              <ng-container *ngIf="hasMultiSeriesLineChart; else singleSeriesLineChart">
+                <div *ngIf="hasSeriesSelector" class="chart-series-selector">
+                  <button
+                    *ngFor="let series of chartSeries"
+                    type="button"
+                    class="chart-series-chip"
+                    [class.active]="selectedChartSeriesKeys.has(series.key)"
+                    (click)="toggleChartSeries(series.key)"
+                  >
+                    <span class="chart-series-chip-dot" [style.backgroundColor]="series.color"></span>
+                    <span>{{ series.key | titlecase }}</span>
+                  </button>
+                </div>
 
-              <div class="line-labels">
-                <div *ngFor="let point of linePoints" class="line-label">
-                  <div class="line-label-name" [title]="point.label">{{ point.label }}</div>
-                  <div class="line-label-value" [title]="point.value | number: '1.0-2'">
-                    {{ formatChartValue(point.value) }}
+                <div class="grouped-bar-legend">
+                  <div *ngFor="let series of visibleLineSeries" class="grouped-bar-legend-item">
+                    <span class="grouped-bar-legend-swatch" [style.backgroundColor]="series.color"></span>
+                    <span>{{ series.key | titlecase }}</span>
                   </div>
                 </div>
-              </div>
+
+                <svg
+                  class="line-chart"
+                  [attr.viewBox]="'0 0 ' + lineChartWidth + ' ' + lineChartHeight"
+                  preserveAspectRatio="none"
+                >
+                  <path
+                    *ngFor="let series of visibleLineSeries"
+                    class="multi-line-path"
+                    [attr.d]="series.path"
+                    [attr.stroke]="series.color"
+                  ></path>
+                  <ng-container *ngFor="let series of visibleLineSeries">
+                    <circle
+                      *ngFor="let point of series.points"
+                      class="multi-line-point"
+                      [attr.cx]="point.cx"
+                      [attr.cy]="point.cy"
+                      [attr.stroke]="series.color"
+                      r="3.5"
+                    ></circle>
+                  </ng-container>
+                </svg>
+
+                <div class="line-labels">
+                  <div *ngFor="let point of linePoints" class="line-label">
+                    <div class="line-label-name" [title]="point.label">{{ point.label }}</div>
+                  </div>
+                </div>
+              </ng-container>
+
+              <ng-template #singleSeriesLineChart>
+                <svg
+                  class="line-chart"
+                  [attr.viewBox]="'0 0 ' + lineChartWidth + ' ' + lineChartHeight"
+                  preserveAspectRatio="none"
+                >
+                  <path class="line-area" [attr.d]="lineAreaPath"></path>
+                  <path class="line-path" [attr.d]="linePath"></path>
+                  <circle
+                    *ngFor="let point of linePoints"
+                    class="line-point"
+                    [attr.cx]="point.cx"
+                    [attr.cy]="point.cy"
+                    r="4"
+                  ></circle>
+                </svg>
+
+                <div class="line-labels">
+                  <div *ngFor="let point of linePoints" class="line-label">
+                    <div class="line-label-name" [title]="point.label">{{ point.label }}</div>
+                    <div class="line-label-value" [title]="point.value | number: '1.0-2'">
+                      {{ formatChartValue(point.value) }}
+                    </div>
+                  </div>
+                </div>
+              </ng-template>
             </div>
 
             <div *ngIf="isDonutChart" class="donut-chart-wrapper">
