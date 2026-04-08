@@ -1,5 +1,4 @@
 <div class="token-usage-container">
-  <!-- Header -->
   <div class="d-flex justify-content-between align-items-center mb-4">
     <div class="d-flex align-items-center gap-2">
       <button class="btn btn-outline-secondary btn-sm" (click)="goToChat()">
@@ -15,7 +14,6 @@
     </button>
   </div>
 
-  <!-- Loading State -->
   <div *ngIf="loading" class="text-center py-5">
     <div class="spinner-border text-primary" role="status">
       <span class="visually-hidden">Loading...</span>
@@ -23,43 +21,42 @@
     <p class="mt-3 text-muted">Loading usage statistics...</p>
   </div>
 
-  <!-- Error State -->
   <div *ngIf="error" class="alert alert-danger alert-dismissible fade show" role="alert">
     <i class="bi bi-exclamation-triangle-fill me-2"></i>
     {{ error }}
     <button type="button" class="btn-close" (click)="error = null"></button>
   </div>
 
-  <!-- Main Content -->
-  <div *ngIf="usageData && !loading">
-    <!-- Token Limits Cards -->
-    <div class="row g-3 mb-4">
-      <div class="col-md-3">
+    <div *ngIf="usageData && !loading">
+      <div class="row g-3 mb-4">
+      <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <p class="text-muted mb-1 small">Monthly Limit</p>
-                <h2 class="mb-0">{{ formatNumber(usageData.token_limits.monthly_limit) }}</h2>
-                <small class="text-muted">tokens per month</small>
+                <p class="text-muted mb-1 small">Token Purchased</p>
+                <h2 class="mb-0">{{ formatNumber(totalTokensPurchased) }}</h2>
+                <small class="text-muted">
+                  available for usage
+                </small>
               </div>
-              <div class="rounded-circle bg-primary bg-opacity-10 p-3">
-                <i class="bi bi-database fs-4 text-primary"></i>
+              <div class="rounded-circle bg-info bg-opacity-10 p-3">
+                <i class="bi bi-bag-check fs-4 text-info"></i>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <p class="text-muted mb-1 small">Used This Month</p>
-                <h2 class="mb-0">{{ formatNumber(usageData.token_limits.used_this_month) }}</h2>
+                <p class="text-muted mb-1 small">Token Used</p>
+                <h2 class="mb-0">{{ formatNumber(totalTokensUsed) }}</h2>
                 <small class="text-muted">
-                  {{ usagePercent }}% of limit
+                  {{ usagePercent }}% consumed
                 </small>
               </div>
               <div class="rounded-circle bg-primary bg-opacity-10 p-3">
@@ -77,20 +74,20 @@
         </div>
       </div>
 
-      <div class="col-md-3">
+      <div class="col-md-4">
         <div class="card border-0 shadow-sm h-100">
           <div class="card-body">
             <div class="d-flex justify-content-between align-items-start">
               <div>
-                <p class="text-muted mb-1 small">Balance Tokens</p>
-                <h2 class="mb-0">{{ formatNumber(usageData.token_limits.balance_tokens) }}</h2>
+                <p class="text-muted mb-1 small">Remaining Tokens</p>
+                <h2 class="mb-0">{{ formatNumber(remainingTokens) }}</h2>
                 <small class="text-muted">
                   <span
                     class="badge"
-                    [class.bg-success]="usageData.token_limits.balance_tokens > 0"
-                    [class.bg-danger]="usageData.token_limits.balance_tokens <= 0"
+                    [class.bg-success]="remainingTokens > 0"
+                    [class.bg-danger]="remainingTokens <= 0"
                   >
-                    {{ usageData.token_limits.balance_tokens > 0 ? 'Available' : 'Exceeded' }}
+                    {{ remainingTokens > 0 ? 'Available' : 'Exceeded' }}
                   </span>
                 </small>
               </div>
@@ -101,28 +98,8 @@
           </div>
         </div>
       </div>
-
-      <div class="col-md-3">
-        <div class="card border-0 shadow-sm h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start">
-              <div>
-                <p class="text-muted mb-1 small">Total Cost</p>
-                <h2 class="mb-0">{{ formatCurrency(usageSummary?.total_cost_actual ?? 0) }}</h2>
-                <small class="text-muted">
-                  Avg accuracy: {{ usageSummary?.avg_accuracy ?? 0 }}%
-                </small>
-              </div>
-              <div class="rounded-circle bg-info bg-opacity-10 p-3">
-                <i class="bi bi-currency-rupee fs-4 text-info"></i>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
 
-    <!-- Usage Gauge & Statistics -->
     <div class="row g-3 mb-4">
       <div class="col-md-5">
         <div class="card border-0 shadow-sm">
@@ -154,10 +131,7 @@
                 <span
                   class="badge"
                   [class.bg-success]="usagePercent < 50"
-                  [class.bg-warning]="
-                    usagePercent >= 50 &&
-                    usagePercent < 80
-                  "
+                  [class.bg-warning]="usagePercent >= 50 && usagePercent < 80"
                   [class.bg-danger]="usagePercent >= 80"
                 >
                   Status: {{ getStatusText(usagePercent) }}
@@ -208,11 +182,57 @@
       </div>
     </div>
 
-    <!-- Daily Usage Chart -->
     <div class="card border-0 shadow-sm mb-4">
-      <div
-        class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center"
-      >
+      <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
+        <h5 class="card-title mb-0">
+          <i class="bi bi-bag-check me-2"></i>
+          Purchase History
+        </h5>
+        <button class="btn btn-sm btn-outline-secondary" (click)="showPurchaseHistory = !showPurchaseHistory">
+          <i class="bi" [class.bi-chevron-up]="showPurchaseHistory" [class.bi-chevron-down]="!showPurchaseHistory"></i>
+        </button>
+      </div>
+      <div class="card-body p-0" *ngIf="showPurchaseHistory">
+        <div *ngIf="purchaseHistoryLoading" class="text-center text-muted py-4">Loading purchase history...</div>
+        <div *ngIf="purchaseHistoryError" class="alert alert-warning m-3 mb-0">{{ purchaseHistoryError }}</div>
+        <div class="table-responsive" *ngIf="!purchaseHistoryLoading && !purchaseHistoryError">
+          <table class="table table-hover mb-0">
+            <thead class="table-light">
+              <tr>
+                <th>Batch ID</th>
+                <th>Purchase Date</th>
+                <th>Expiry Date</th>
+                <th class="text-end">Tokens Purchased</th>
+                <th class="text-end">Purchase Amount</th>
+                <th class="text-end">Remaining Tokens</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of purchaseHistory">
+                <td>{{ item.batch_id || 'N/A' }}</td>
+                <td>{{ formatDate(item.purchase_date || '') }}</td>
+                <td>{{ formatDate(item.expiry_date || '') }}</td>
+                <td class="text-end">{{ formatNumber(item.tokens_allocated) }}</td>
+                <td class="text-end">{{ formatCurrency(item.purchase_amount) }}</td>
+                <td class="text-end">{{ formatNumber(item.tokens_remaining ?? 0) }}</td>
+                <td>
+                  <span class="badge text-capitalize" [class.bg-success]="item.status === 'active'" [class.bg-secondary]="item.status !== 'active'">
+                    {{ item.status || 'N/A' }}
+                  </span>
+                </td>
+              </tr>
+              <tr *ngIf="purchaseHistory.length === 0">
+                <td colspan="6" class="text-center text-muted py-4">No purchase history found</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0">
           <i class="bi bi-calendar-week me-2"></i>
           Daily Usage (Last 30 Days)
@@ -259,24 +279,14 @@
       </div>
     </div>
 
-    <!-- Recent Queries -->
     <div class="card border-0 shadow-sm">
-      <div
-        class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center"
-      >
+      <div class="card-header bg-white border-0 pt-3 d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0">
           <i class="bi bi-clock-history me-2"></i>
           Recent Queries
         </h5>
-        <button
-          class="btn btn-sm btn-outline-secondary"
-          (click)="showRecentQueries = !showRecentQueries"
-        >
-          <i
-            class="bi"
-            [class.bi-chevron-up]="showRecentQueries"
-            [class.bi-chevron-down]="!showRecentQueries"
-          ></i>
+        <button class="btn btn-sm btn-outline-secondary" (click)="showRecentQueries = !showRecentQueries">
+          <i class="bi" [class.bi-chevron-up]="showRecentQueries" [class.bi-chevron-down]="!showRecentQueries"></i>
         </button>
       </div>
       <div class="card-body p-0" *ngIf="showRecentQueries">
@@ -285,28 +295,78 @@
             <thead class="table-light">
               <tr>
                 <th>Query</th>
-                <th>Tokens Used</th>
-                <th>Cost</th>
+                <th>SQL Query</th>
+                <th class="text-end">Tokens Used</th>
                 <th>Time</th>
                 <th>Accuracy</th>
                 <th>Date</th>
               </tr>
+              <tr class="usage-filter-row">
+                <th>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Filter query"
+                    [(ngModel)]="recentQueryFilters.query"
+                  />
+                </th>
+                <th>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Filter SQL"
+                    [(ngModel)]="recentQueryFilters.sql"
+                  />
+                </th>
+                <th>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm text-end"
+                    placeholder="Tokens"
+                    [(ngModel)]="recentQueryFilters.tokens"
+                  />
+                </th>
+                <th>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Time"
+                    [(ngModel)]="recentQueryFilters.time"
+                  />
+                </th>
+                <th>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Accuracy"
+                    [(ngModel)]="recentQueryFilters.accuracy"
+                  />
+                </th>
+                <th>
+                  <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Date"
+                    [(ngModel)]="recentQueryFilters.date"
+                  />
+                </th>
+              </tr>
             </thead>
             <tbody>
-              <tr *ngFor="let query of usageData.recent_queries">
-                <td class="text-truncate" style="max-width: 300px" title="{{ query.query_text }}">
+              <tr *ngFor="let query of filteredRecentQueries">
+                <td class="text-truncate" style="max-width: 300px" [title]="query.query_text">
                   {{ query.query_text }}
                 </td>
-                <td>{{ formatNumber(query.tokens_used_actual) }}</td>
-                <td>{{ formatCurrency(query.cost_actual) }}</td>
+                <td class="text-truncate" style="max-width: 320px" [title]="query.sql_query || ''">
+                  {{ query.sql_query || 'N/A' }}
+                </td>
+                <td class="text-end">{{ formatNumber(query.tokens_used_actual) }}</td>
                 <td>{{ query.processing_time_ms }} ms</td>
                 <td>
                   <span
                     class="badge"
                     [class.bg-success]="query.token_accuracy_percent >= 80"
-                    [class.bg-warning]="
-                      query.token_accuracy_percent >= 60 && query.token_accuracy_percent < 80
-                    "
+                    [class.bg-warning]="query.token_accuracy_percent >= 60 && query.token_accuracy_percent < 80"
                     [class.bg-danger]="query.token_accuracy_percent < 60"
                   >
                     {{ query.token_accuracy_percent }}%
@@ -314,14 +374,20 @@
                 </td>
                 <td>{{ formatDate(query.query_timestamp) }}</td>
               </tr>
-              <tr *ngIf="usageData.recent_queries.length === 0">
-                <td colspan="6" class="text-center text-muted py-4">No queries found</td>
+              <tr *ngIf="filteredRecentQueries.length === 0">
+                <td colspan="6" class="text-center text-muted py-4">No matching queries found</td>
               </tr>
             </tbody>
+            <tfoot *ngIf="filteredRecentQueries.length > 0" class="table-light">
+              <tr>
+                <td colspan="2" class="fw-semibold">Total</td>
+                <td class="text-end fw-semibold">{{ formatNumber(filteredRecentQueryTokenSum) }}</td>
+                <td colspan="3"></td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
     </div>
-
   </div>
 </div>
