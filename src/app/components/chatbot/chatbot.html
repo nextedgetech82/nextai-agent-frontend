@@ -76,7 +76,7 @@
 
     <!-- Messages Container -->
     <div class="chat-messages" #chatContainer>
-      <div *ngIf="currentSession?.messages?.length === 0" class="welcome-screen">
+      <div *ngIf="!currentSession || currentSession.messages.length === 0" class="welcome-screen">
         <div class="welcome-icon">
           <i class="bi bi-chat-dots-fill"></i>
         </div>

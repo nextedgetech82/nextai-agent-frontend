@@ -1,6 +1,12 @@
 import { Injectable, NgZone } from '@angular/core';
-import { BehaviorSubject, Observable, firstValueFrom } from 'rxjs';
-import { AnalyticsService } from './analytics.service';
+import { BehaviorSubject, firstValueFrom } from 'rxjs';
+import {
+  AnalyticsService,
+  ChatSessionApiItem,
+  ChatSessionApiMessage,
+  ChatSessionListResponse,
+  ChatSessionResponse,
+} from './analytics.service';
 import { AnalyticsChart, AnalyticsChartConfig } from '../models/analytics-response';
 
 export interface ChatMessage {
@@ -29,6 +35,7 @@ export interface ChatSession {
   providedIn: 'root',
 })
 export class ChatbotService {
+  private readonly currentSessionStorageKey = 'current_chat_session_id';
   private currentSessionSubject = new BehaviorSubject<ChatSession | null>(null);
   private sessionsSubject = new BehaviorSubject<ChatSession[]>([]);
 
@@ -38,33 +45,49 @@ export class ChatbotService {
   constructor(
     private analyticsService: AnalyticsService,
     private ngZone: NgZone,
-  ) {
-    this.loadSessions();
+  ) {}
+
+  async initialize(): Promise<void> {
+    await this.refreshSessions();
+
+    const currentSessionId = this.getStoredCurrentSessionId();
+    const fallbackSessionId = this.sessionsSubject.value[0]?.id ?? null;
+    const targetSessionId = currentSessionId || fallbackSessionId;
+
+    if (targetSessionId) {
+      await this.switchSession(targetSessionId);
+      return;
+    }
+
+    this.ngZone.run(() => {
+      this.currentSessionSubject.next(null);
+    });
   }
 
-  createNewSession(): ChatSession {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
+  async createNewSession(): Promise<ChatSession> {
+    const draftSession: ChatSession = {
+      id: '',
       title: 'New Conversation',
       messages: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    const sessions = this.sessionsSubject.value;
-    sessions.unshift(newSession);
-    this.sessionsSubject.next(sessions);
-    this.currentSessionSubject.next(newSession);
-    this.saveSessions();
+    this.clearStoredCurrentSessionId();
+    this.ngZone.run(() => {
+      this.currentSessionSubject.next(draftSession);
+    });
 
-    return newSession;
+    return draftSession;
   }
 
-  async sendMessage(sessionId: string, userMessage: string, insights: boolean = true): Promise<void> {
-    const session = this.sessionsSubject.value.find((s) => s.id === sessionId);
-    if (!session) return;
+  async sendMessage(sessionId: string | null, userMessage: string, insights: boolean = true): Promise<void> {
+    let activeSession = this.sessionsSubject.value.find((session) => session.id === sessionId);
 
-    // Add user message
+    if (!activeSession) {
+      activeSession = await this.createNewSession();
+    }
+
     const userChatMessage: ChatMessage = {
       id: Date.now().toString(),
       type: 'user',
@@ -72,33 +95,32 @@ export class ChatbotService {
       timestamp: new Date(),
     };
 
-    session.messages.push(userChatMessage);
-
-    // Add loading bot message
     const loadingMessage: ChatMessage = {
-      id: (Date.now() + 1).toString(),
+      id: `${Date.now() + 1}`,
       type: 'bot',
       content: '',
       timestamp: new Date(),
       isLoading: true,
     };
-    session.messages.push(loadingMessage);
-    this.updateSession(session);
+
+    const optimisticSession: ChatSession = {
+      ...activeSession,
+      messages: [...activeSession.messages, userChatMessage, loadingMessage],
+      updatedAt: new Date(),
+    };
+    this.upsertSession(optimisticSession);
 
     try {
-      // Call API
       const response = await firstValueFrom(
-        this.analyticsService.processQuery({ query: userMessage, insights }),
+        this.analyticsService.processQuery({ query: userMessage, insights }, activeSession.id),
       );
 
-      // Remove loading message and add actual response
-      session.messages.pop();
-
+      const responseSessionId = response.session_id || optimisticSession.id;
       const botMessage: ChatMessage = {
-        id: Date.now().toString(),
+        id: `${Date.now() + 2}`,
         type: 'bot',
         content: response.insights || "Here's your data:",
-        timestamp: new Date(),
+        timestamp: response.timestamp ? new Date(response.timestamp) : new Date(),
         data: response.data,
         sqlQuery: response.sqlQuery,
         insights: response.insights,
@@ -107,23 +129,24 @@ export class ChatbotService {
         isLoading: false,
       };
 
-      session.messages.push(botMessage);
-      session.updatedAt = new Date();
+      const finalizedSession: ChatSession = {
+        ...optimisticSession,
+        id: responseSessionId,
+        messages: [...optimisticSession.messages.slice(0, -1), botMessage],
+        updatedAt: botMessage.timestamp,
+        title:
+          activeSession.title === 'New Conversation'
+            ? this.buildSessionTitle(userMessage)
+            : activeSession.title,
+      };
 
-      // Update session title if it's the first message
-      if (session.messages.length === 2) {
-        session.title =
-          userMessage.length > 30 ? userMessage.substring(0, 30) + '...' : userMessage;
-      }
-
-      this.updateSession(session);
+      this.upsertSession(finalizedSession);
+      this.persistCurrentSessionId(responseSessionId);
+      await this.refreshSessions();
+      await this.switchSession(responseSessionId);
     } catch (error: any) {
-      // Remove loading message
-      session.messages.pop();
-
-      // Add error message
       const errorMessage: ChatMessage = {
-        id: Date.now().toString(),
+        id: `${Date.now() + 2}`,
         type: 'bot',
         content: `Sorry, I encountered an error: ${error.message || 'Please try again.'}`,
         timestamp: new Date(),
@@ -131,66 +154,319 @@ export class ChatbotService {
         isError: true,
       };
 
-      session.messages.push(errorMessage);
-      this.updateSession(session);
-    }
-  }
-
-  updateSession(session: ChatSession): void {
-    const sessions = this.sessionsSubject.value;
-    const index = sessions.findIndex((s) => s.id === session.id);
-    if (index !== -1) {
-      const updatedSession: ChatSession = {
-        ...session,
-        messages: [...session.messages],
+      const failedSession: ChatSession = {
+        ...optimisticSession,
+        messages: [...optimisticSession.messages.slice(0, -1), errorMessage],
+        updatedAt: errorMessage.timestamp,
       };
-      const updatedSessions = [...sessions];
-      updatedSessions[index] = updatedSession;
 
-      this.ngZone.run(() => {
-        this.sessionsSubject.next(updatedSessions);
-        this.currentSessionSubject.next(updatedSession);
-        this.saveSessions();
-      });
-    }
-  }
-
-  deleteSession(sessionId: string): void {
-    let sessions = this.sessionsSubject.value;
-    sessions = sessions.filter((s) => s.id !== sessionId);
-    this.sessionsSubject.next(sessions);
-
-    if (this.currentSessionSubject.value?.id === sessionId) {
-      this.currentSessionSubject.next(sessions[0] || null);
-    }
-    this.saveSessions();
-  }
-
-  switchSession(sessionId: string): void {
-    const session = this.sessionsSubject.value.find((s) => s.id === sessionId);
-    if (session) {
-      this.currentSessionSubject.next(session);
-    }
-  }
-
-  clearSessions(): void {
-    this.sessionsSubject.next([]);
-    this.currentSessionSubject.next(null);
-    localStorage.removeItem('chat_sessions');
-  }
-
-  private loadSessions(): void {
-    const saved = localStorage.getItem('chat_sessions');
-    if (saved) {
-      const sessions = JSON.parse(saved);
-      this.sessionsSubject.next(sessions);
-      if (sessions.length > 0) {
-        this.currentSessionSubject.next(sessions[0]);
+      if (failedSession.id) {
+        this.upsertSession(failedSession);
+      } else {
+        this.ngZone.run(() => {
+          this.currentSessionSubject.next(failedSession);
+        });
       }
     }
   }
 
-  private saveSessions(): void {
-    localStorage.setItem('chat_sessions', JSON.stringify(this.sessionsSubject.value));
+  async deleteSession(sessionId: string): Promise<void> {
+    await firstValueFrom(this.analyticsService.deleteChatSession(sessionId));
+
+    const remainingSessions = this.sessionsSubject.value.filter((session) => session.id !== sessionId);
+    this.ngZone.run(() => {
+      this.sessionsSubject.next(remainingSessions);
+    });
+
+    if (this.currentSessionSubject.value?.id === sessionId) {
+      const nextSessionId = remainingSessions[0]?.id ?? null;
+      if (nextSessionId) {
+        await this.switchSession(nextSessionId);
+      } else {
+        this.clearStoredCurrentSessionId();
+        this.ngZone.run(() => {
+          this.currentSessionSubject.next(null);
+        });
+      }
+      return;
+    }
+
+    this.persistCurrentSessionId(this.currentSessionSubject.value?.id ?? null);
+  }
+
+  async switchSession(sessionId: string): Promise<void> {
+    const response = await firstValueFrom(this.analyticsService.getChatSession(sessionId));
+    const normalized = this.normalizeSession(this.extractSessionItem(response), true);
+    this.upsertSession(normalized);
+    this.persistCurrentSessionId(normalized.id);
+  }
+
+  async clearSessions(): Promise<void> {
+    await firstValueFrom(this.analyticsService.clearChatSessions());
+    this.resetLocalState();
+  }
+
+  resetLocalState(): void {
+    this.clearStoredCurrentSessionId();
+
+    this.ngZone.run(() => {
+      this.sessionsSubject.next([]);
+      this.currentSessionSubject.next(null);
+    });
+  }
+
+  private async refreshSessions(): Promise<void> {
+    const response = await firstValueFrom(this.analyticsService.listChatSessions());
+    const sessions = this.normalizeSessionListResponse(response);
+
+    this.ngZone.run(() => {
+      this.sessionsSubject.next(sessions);
+    });
+  }
+
+  private normalizeSessionListResponse(response: ChatSessionListResponse): ChatSession[] {
+    const rows = response.sessions ?? response.data ?? response.items ?? [];
+    return rows.map((item) => this.normalizeSession(item, false));
+  }
+
+  private extractSessionItem(response: ChatSessionResponse): ChatSessionApiItem {
+    const session = response.session ?? response.data ?? response;
+    return {
+      ...session,
+      messages:
+        session.messages ??
+        session.chat_history ??
+        session.history ??
+        session.session_messages ??
+        response.messages ??
+        response.chat_history ??
+        response.history ??
+        response.session_messages ??
+        [],
+    };
+  }
+
+  private normalizeSession(item: ChatSessionApiItem, includeMessages: boolean): ChatSession {
+    const sessionId = String(item.id ?? item.session_id ?? Date.now());
+    const createdAt = this.parseDate(item.createdAt ?? item.created_at);
+    const updatedAt = this.parseDate(item.updatedAt ?? item.updated_at, createdAt);
+    const rawMessages =
+      item.messages ?? item.chat_history ?? item.history ?? item.session_messages ?? [];
+    const messages = includeMessages ? this.normalizeMessages(rawMessages) : [];
+
+    return {
+      id: sessionId,
+      title: item.title || item.session_title || 'New Conversation',
+      messages,
+      createdAt,
+      updatedAt,
+    };
+  }
+
+  private normalizeMessages(messages: ChatSessionApiMessage[]): ChatMessage[] {
+    return messages.flatMap((message, index) => this.normalizeMessagePair(message, index));
+  }
+
+  private normalizeMessagePair(message: ChatSessionApiMessage, index: number): ChatMessage[] {
+    const timestamp = this.parseDate(message.createdAt ?? message.created_at ?? message.timestamp);
+    const baseId = String(message.id ?? `${Date.now()}-${index}`);
+    const normalizedType = this.normalizeMessageType(message);
+    const botPayload = this.extractBotPayload(message);
+    const userContent = this.normalizeContent(
+      normalizedType === 'user'
+        ? message.content ?? message.message ?? message.query ?? message.query_text ?? message.prompt ?? message.user_query
+        : message.query ?? message.query_text ?? message.prompt ?? message.user_query,
+    );
+    const botContent = this.normalizeContent(
+      normalizedType === 'bot'
+        ? message.content ?? message.message ?? message.response ?? message.answer ?? botPayload.insights
+        : message.response ?? message.answer ?? message.content ?? message.message ?? botPayload.insights,
+    );
+
+    if (userContent && botContent) {
+      return [
+        {
+          id: `${baseId}-user`,
+          type: 'user',
+          content: userContent,
+          timestamp,
+        },
+        {
+          id: `${baseId}-bot`,
+          type: 'bot',
+          content: botContent,
+          timestamp,
+          data: botPayload.data,
+          sqlQuery: botPayload.sqlQuery,
+          insights: botPayload.insights,
+          chart: botPayload.chart,
+          chartConfig: botPayload.chartConfig,
+          isError: Boolean(message.isError ?? message.is_error),
+          isLoading: false,
+        },
+      ];
+    }
+
+    const type = this.normalizeMessageType(message, userContent);
+    const content = type === 'user' ? userContent : botContent;
+
+    if (!content) {
+      return [];
+    }
+
+    return [
+      {
+        id: baseId,
+        type,
+        content: content ?? '',
+        timestamp,
+        data: type === 'bot' ? botPayload.data : undefined,
+        sqlQuery: type === 'bot' ? botPayload.sqlQuery : undefined,
+        insights: type === 'bot' ? botPayload.insights : undefined,
+        chart: type === 'bot' ? botPayload.chart : undefined,
+        chartConfig: type === 'bot' ? botPayload.chartConfig : undefined,
+        isError: type === 'bot' ? Boolean(message.isError ?? message.is_error) : false,
+        isLoading: false,
+      },
+    ];
+  }
+
+  private normalizeMessageType(message: ChatSessionApiMessage, userContent?: string): 'user' | 'bot' {
+    const rawType = (message.type ?? message.role ?? message.sender ?? message.message_type ?? '').toLowerCase();
+    if (rawType === 'user' || rawType === 'human' || rawType === 'prompt') {
+      return 'user';
+    }
+
+    if (rawType === 'assistant' || rawType === 'bot' || rawType === 'response' || rawType === 'system') {
+      return 'bot';
+    }
+
+    if (userContent) {
+      return 'user';
+    }
+
+    return 'bot';
+  }
+
+  private normalizeContent(value?: string): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const trimmed = value.trim();
+    return trimmed ? trimmed : null;
+  }
+
+  private extractBotPayload(message: ChatSessionApiMessage): {
+    chart?: AnalyticsChart;
+    chartConfig?: AnalyticsChartConfig;
+    data?: any[];
+    insights?: string;
+    sqlQuery?: string;
+  } {
+    const analyticsResponse = message.analytics_response;
+    const data = this.normalizeDataArray(
+      message.data ??
+        message.data_json ??
+        message.rows ??
+        message.results ??
+        message.table_data ??
+        message.response_data ??
+        message.analytics_data ??
+        analyticsResponse?.data,
+    );
+    const chartConfig = this.normalizeJsonValue<AnalyticsChartConfig>(
+      message.chartConfig ?? message.chart_config ?? analyticsResponse?.chartConfig ?? analyticsResponse?.chart_config,
+    );
+
+    return {
+      data,
+      sqlQuery: message.sqlQuery ?? message.sql_query ?? analyticsResponse?.sqlQuery ?? analyticsResponse?.sql_query,
+      insights: message.insights ?? analyticsResponse?.insights,
+      chart: message.chart ?? analyticsResponse?.chart,
+      chartConfig,
+    };
+  }
+
+  private normalizeDataArray(value: unknown): any[] | undefined {
+    if (Array.isArray(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const parsed = this.normalizeJsonValue<unknown>(value);
+      return Array.isArray(parsed) ? parsed : undefined;
+    }
+
+    return undefined;
+  }
+
+  private normalizeJsonValue<T>(value: unknown): T | undefined {
+    if (value == null) {
+      return undefined;
+    }
+
+    if (typeof value !== 'string') {
+      return value as T;
+    }
+
+    try {
+      return JSON.parse(value) as T;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private upsertSession(session: ChatSession): void {
+    const existingSessions = this.sessionsSubject.value;
+    const sessionSummary: ChatSession = {
+      ...session,
+      messages: [...session.messages],
+    };
+    const index = existingSessions.findIndex((item) => item.id === session.id);
+    let nextSessions: ChatSession[];
+
+    if (index === -1) {
+      nextSessions = [sessionSummary, ...existingSessions];
+    } else {
+      nextSessions = [...existingSessions];
+      nextSessions[index] = sessionSummary;
+      nextSessions.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    }
+
+    this.ngZone.run(() => {
+      this.sessionsSubject.next(nextSessions);
+      this.currentSessionSubject.next(sessionSummary);
+    });
+  }
+
+  private buildSessionTitle(message: string): string {
+    return message.length > 30 ? `${message.substring(0, 30)}...` : message;
+  }
+
+  private parseDate(value?: string, fallback: Date = new Date()): Date {
+    if (!value) {
+      return fallback;
+    }
+
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? fallback : parsed;
+  }
+
+  private getStoredCurrentSessionId(): string | null {
+    return localStorage.getItem(this.currentSessionStorageKey);
+  }
+
+  private persistCurrentSessionId(sessionId: string | null): void {
+    if (!sessionId) {
+      this.clearStoredCurrentSessionId();
+      return;
+    }
+
+    localStorage.setItem(this.currentSessionStorageKey, sessionId);
+  }
+
+  private clearStoredCurrentSessionId(): void {
+    localStorage.removeItem(this.currentSessionStorageKey);
   }
 }

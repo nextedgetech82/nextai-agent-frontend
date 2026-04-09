@@ -81,34 +81,31 @@ export class ChatbotComponent implements OnInit {
       });
     });
 
-    // Create new session if none exists
-    if (this.sessions.length === 0) {
-      this.newChat();
-    }
+    void this.initializeChat();
   }
 
-  newChat(): void {
-    this.chatbotService.createNewSession();
+  async newChat(): Promise<void> {
+    await this.chatbotService.createNewSession();
     this.messageForm.reset({ message: '', insights: true });
   }
 
   sendMessage(): void {
-    if (this.messageForm.invalid || !this.currentSession) return;
+    if (this.messageForm.invalid) return;
 
     const { message, insights } = this.messageForm.getRawValue();
-    this.chatbotService.sendMessage(this.currentSession.id, message, insights);
+    void this.chatbotService.sendMessage(this.currentSession?.id ?? null, message, insights);
     this.messageForm.patchValue({ message: '' });
     this.cdr.detectChanges();
   }
 
   switchSession(sessionId: string): void {
-    this.chatbotService.switchSession(sessionId);
+    void this.chatbotService.switchSession(sessionId);
   }
 
   deleteSession(sessionId: string, event: Event): void {
     event.stopPropagation();
     if (confirm('Delete this conversation?')) {
-      this.chatbotService.deleteSession(sessionId);
+      void this.chatbotService.deleteSession(sessionId);
     }
   }
 
@@ -119,8 +116,7 @@ export class ChatbotComponent implements OnInit {
 
   clearAllChats(): void {
     if (confirm('Delete all conversations? This cannot be undone.')) {
-      this.chatbotService.clearSessions();
-      this.newChat();
+      void this.resetChats();
     }
   }
 
@@ -140,7 +136,7 @@ export class ChatbotComponent implements OnInit {
 
   logout(): void {
     this.customerAuthService.clearCredentials();
-    this.chatbotService.clearSessions();
+    this.chatbotService.resetLocalState();
     void this.router.navigate(['/login']);
   }
 
@@ -172,5 +168,14 @@ export class ChatbotComponent implements OnInit {
     const isMobile = window.innerWidth <= 992;
     this.isMobileLayout = isMobile;
     this.showSidebar = !isMobile;
+  }
+
+  private async initializeChat(): Promise<void> {
+    await this.chatbotService.initialize();
+  }
+
+  private async resetChats(): Promise<void> {
+    await this.chatbotService.clearSessions();
+    this.messageForm.reset({ message: '', insights: true });
   }
 }

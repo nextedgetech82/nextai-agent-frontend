@@ -7,6 +7,7 @@ interface CustomerApiKeyResponse {
   success: boolean;
   customer_id: string;
   api_key: string;
+  message?: string;
 }
 
 @Injectable({
@@ -28,7 +29,7 @@ export class CustomerAuthService {
         timeout(10000),
         map((response) => {
           if (!response.success || !response.api_key) {
-            throw new Error('Customer ID validation failed');
+            throw new Error(response.message || 'Customer ID validation failed');
           }
 
           this.saveCredentials(response.customer_id, response.api_key);
@@ -60,8 +61,12 @@ export class CustomerAuthService {
     localStorage.removeItem(this.apiKeyStorageKey);
   }
 
-  private handleError(error: HttpErrorResponse) {
-    const errorMessage = error.error?.error || error.message || 'Unable to validate customer ID';
+  private handleError(error: HttpErrorResponse | Error) {
+    const errorMessage =
+      (error as HttpErrorResponse).error?.message ||
+      (error as HttpErrorResponse).error?.error ||
+      error.message ||
+      'Unable to validate customer ID';
     return throwError(() => new Error(errorMessage));
   }
 }

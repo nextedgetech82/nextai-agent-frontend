@@ -6,9 +6,10 @@ export const customerAuthInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(CustomerAuthService);
   const apiKey = authService.getApiKey();
   const isCustomerApiKeyRequest = req.url.includes('/multi-customer/customer-api-key');
-  const isProtectedMultiCustomerRequest = req.url.includes('/multi-customer/');
+  const isProtectedRequest =
+    req.url.includes('/multi-customer/') || req.url.includes('/api/v3/chat/');
 
-  if (!apiKey || !isProtectedMultiCustomerRequest || isCustomerApiKeyRequest) {
+  if (!apiKey || !isProtectedRequest || isCustomerApiKeyRequest) {
     return next(req);
   }
 

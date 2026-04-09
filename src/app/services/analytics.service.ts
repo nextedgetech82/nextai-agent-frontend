@@ -1,9 +1,95 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, throwError, timeout, catchError } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { AnalyticsResponse } from '../models/analytics-response';
 import { QueryRequest } from '../models/query-request';
+
+export interface ChatSessionApiMessage {
+  id?: string | number;
+  role?: string;
+  type?: string;
+  sender?: string;
+  message_type?: string;
+  content?: string;
+  message?: string;
+  query?: string;
+  query_text?: string;
+  prompt?: string;
+  user_query?: string;
+  response?: string;
+  answer?: string;
+  sqlQuery?: string;
+  sql_query?: string;
+  insights?: string;
+  data?: any[];
+  data_json?: string | any[];
+  rows?: any[];
+  results?: any[];
+  table_data?: any[];
+  response_data?: any[];
+  analytics_data?: any[];
+  analytics_response?: {
+    data?: any[];
+    sqlQuery?: string;
+    sql_query?: string;
+    insights?: string;
+    chart?: any;
+    chartConfig?: any;
+    chart_config?: any;
+  };
+  chart?: any;
+  chartConfig?: any;
+  chart_config?: any;
+  isError?: boolean;
+  is_error?: boolean;
+  createdAt?: string;
+  created_at?: string;
+  timestamp?: string;
+}
+
+export interface ChatSessionApiItem {
+  id?: string | number;
+  session_id?: string;
+  title?: string;
+  session_title?: string;
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+  is_active?: boolean;
+  total_messages?: number;
+  total_tokens_used?: number;
+  messages?: ChatSessionApiMessage[];
+  chat_history?: ChatSessionApiMessage[];
+  history?: ChatSessionApiMessage[];
+  session_messages?: ChatSessionApiMessage[];
+}
+
+export interface ChatSessionListResponse {
+  success?: boolean;
+  sessions?: ChatSessionApiItem[];
+  data?: ChatSessionApiItem[];
+  items?: ChatSessionApiItem[];
+}
+
+export interface ChatSessionResponse {
+  success?: boolean;
+  session?: ChatSessionApiItem;
+  data?: ChatSessionApiItem;
+  id?: string | number;
+  session_id?: string;
+  title?: string;
+  session_title?: string;
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+  messages?: ChatSessionApiMessage[];
+  chat_history?: ChatSessionApiMessage[];
+  history?: ChatSessionApiMessage[];
+  session_messages?: ChatSessionApiMessage[];
+}
 
 @Injectable({
   providedIn: 'root',
@@ -11,13 +97,55 @@ import { QueryRequest } from '../models/query-request';
 export class AnalyticsService {
   private apiUrl = environment.apiUrl;
   private analyticsTimeoutMs = environment.analyticsTimeoutMs ?? 120000;
+  private chatApiUrl = `${environment.apiUrl}/v3/chat`;
 
   constructor(private http: HttpClient) {}
 
-  processQuery(request: QueryRequest): Observable<AnalyticsResponse> {
+  processQuery(request: QueryRequest, sessionId?: string): Observable<AnalyticsResponse> {
+    const headers = sessionId ? new HttpHeaders({ 'x-session-id': sessionId }) : undefined;
+
     return this.http
-      .post<AnalyticsResponse>(`${this.apiUrl}/multi-customer/analytics`, request)
+      .post<AnalyticsResponse>(`${this.apiUrl}/multi-customer/analytics`, request, { headers })
       .pipe(timeout(this.analyticsTimeoutMs), catchError(this.handleError));
+  }
+
+  listChatSessions(limit?: number, offset?: number): Observable<ChatSessionListResponse> {
+    let params = new HttpParams();
+    if (limit != null) {
+      params = params.set('limit', String(limit));
+    }
+    if (offset != null) {
+      params = params.set('offset', String(offset));
+    }
+
+    return this.http
+      .get<ChatSessionListResponse>(`${this.chatApiUrl}/sessions`, { params })
+      .pipe(timeout(15000), catchError(this.handleError));
+  }
+
+  getChatSession(sessionId: string): Observable<ChatSessionResponse> {
+    return this.http
+      .get<ChatSessionResponse>(`${this.chatApiUrl}/sessions/${sessionId}`)
+      .pipe(timeout(15000), catchError(this.handleError));
+  }
+
+  createChatSession(title?: string): Observable<ChatSessionResponse> {
+    const body = title ? { title } : {};
+    return this.http
+      .post<ChatSessionResponse>(`${this.chatApiUrl}/sessions`, body)
+      .pipe(timeout(15000), catchError(this.handleError));
+  }
+
+  deleteChatSession(sessionId: string): Observable<unknown> {
+    return this.http
+      .delete(`${this.chatApiUrl}/sessions/${sessionId}`)
+      .pipe(timeout(15000), catchError(this.handleError));
+  }
+
+  clearChatSessions(): Observable<unknown> {
+    return this.http
+      .delete(`${this.chatApiUrl}/sessions`)
+      .pipe(timeout(15000), catchError(this.handleError));
   }
 
   getSuggestions(): Observable<{ suggestions: string[] }> {

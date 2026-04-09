@@ -33,6 +33,7 @@ export interface AnalyticsChartConfig {
 
 export interface AnalyticsResponse {
   success: boolean;
+  session_id?: string;
   query: string;
   sqlQuery: string;
   data: any[];
