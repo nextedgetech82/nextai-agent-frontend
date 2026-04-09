@@ -81,7 +81,12 @@ export class ChatbotService {
     return draftSession;
   }
 
-  async sendMessage(sessionId: string | null, userMessage: string, insights: boolean = true): Promise<void> {
+  async sendMessage(
+    sessionId: string | null,
+    userMessage: string,
+    insights: boolean = true,
+    chart: boolean = true,
+  ): Promise<void> {
     let activeSession = this.sessionsSubject.value.find((session) => session.id === sessionId);
 
     if (!activeSession) {
@@ -112,7 +117,7 @@ export class ChatbotService {
 
     try {
       const response = await firstValueFrom(
-        this.analyticsService.processQuery({ query: userMessage, insights }, activeSession.id),
+        this.analyticsService.processQuery({ query: userMessage, insights, chart }, activeSession.id),
       );
 
       const responseSessionId = response.session_id || optimisticSession.id;

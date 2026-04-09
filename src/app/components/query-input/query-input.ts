@@ -20,6 +20,7 @@ export class QueryInputComponent implements OnInit {
   queryForm = this.fb.nonNullable.group({
     query: ['', [Validators.required, Validators.minLength(3)]],
     insights: [true],
+    chart: [true],
   });
   suggestions: string[] = [];
   showSuggestions = false;

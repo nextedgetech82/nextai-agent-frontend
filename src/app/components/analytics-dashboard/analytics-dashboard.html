@@ -32,7 +32,7 @@
         <button
           *ngFor="let query of recentQueries"
           class="btn btn-sm btn-outline-secondary"
-          (click)="onQuerySubmit({ query, insights: true })"
+          (click)="onQuerySubmit({ query, insights: true, chart: true })"
         >
           {{ query | slice: 0 : 60 }}{{ query.length > 60 ? '...' : '' }}
         </button>

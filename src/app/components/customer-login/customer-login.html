@@ -8,12 +8,7 @@
       <p>Enter your mobile number to load your company chatbot.</p>
     </div>
 
-    <form
-      [formGroup]="loginForm"
-      (ngSubmit)="submit()"
-      class="login-form"
-      appEnterKeyNavigation
-    >
+    <form [formGroup]="loginForm" (ngSubmit)="submit()" class="login-form" appEnterKeyNavigation>
       <label for="customerId" class="form-label">Mobile Number</label>
       <input
         id="customerId"
@@ -22,12 +17,19 @@
         formControlName="customerId"
         autofocus
         maxlength="10"
-        placeholder="9327927990"
+        placeholder="9879512345"
       />
 
-      <div class="validation-error" *ngIf="loginForm.get('customerId')?.touched && loginForm.get('customerId')?.invalid">
-        <span *ngIf="loginForm.get('customerId')?.errors?.['required']">Mobile number is required.</span>
-        <span *ngIf="loginForm.get('customerId')?.errors?.['pattern']">Enter a valid 10 digit mobile number.</span>
+      <div
+        class="validation-error"
+        *ngIf="loginForm.get('customerId')?.touched && loginForm.get('customerId')?.invalid"
+      >
+        <span *ngIf="loginForm.get('customerId')?.errors?.['required']"
+          >Mobile number is required.</span
+        >
+        <span *ngIf="loginForm.get('customerId')?.errors?.['pattern']"
+          >Enter a valid 10 digit mobile number.</span
+        >
       </div>
 
       <div *ngIf="error" class="alert alert-danger mt-3 mb-0">

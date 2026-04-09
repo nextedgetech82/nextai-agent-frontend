@@ -21,6 +21,7 @@ export class ChatbotComponent implements OnInit {
   messageForm = this.fb.nonNullable.group({
     message: ['', Validators.required],
     insights: [true],
+    chart: [true],
   });
   currentSession: ChatSession | null = null;
   sessions: ChatSession[] = [];
@@ -86,14 +87,14 @@ export class ChatbotComponent implements OnInit {
 
   async newChat(): Promise<void> {
     await this.chatbotService.createNewSession();
-    this.messageForm.reset({ message: '', insights: true });
+    this.messageForm.reset({ message: '', insights: true, chart: true });
   }
 
   sendMessage(): void {
     if (this.messageForm.invalid) return;
 
-    const { message, insights } = this.messageForm.getRawValue();
-    void this.chatbotService.sendMessage(this.currentSession?.id ?? null, message, insights);
+    const { message, insights, chart } = this.messageForm.getRawValue();
+    void this.chatbotService.sendMessage(this.currentSession?.id ?? null, message, insights, chart);
     this.messageForm.patchValue({ message: '' });
     this.cdr.detectChanges();
   }
@@ -176,6 +177,6 @@ export class ChatbotComponent implements OnInit {
 
   private async resetChats(): Promise<void> {
     await this.chatbotService.clearSessions();
-    this.messageForm.reset({ message: '', insights: true });
+    this.messageForm.reset({ message: '', insights: true, chart: true });
   }
 }
