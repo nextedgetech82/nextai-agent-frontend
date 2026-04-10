@@ -28,6 +28,7 @@ export class ChatbotComponent implements OnInit {
   showSidebar = true;
   isTyping = false;
   isMobileLayout = false;
+  disableLogout = false;
 
   suggestedQuestions = [
     'Show last bill date and bill number',
@@ -48,6 +49,7 @@ export class ChatbotComponent implements OnInit {
 
   ngOnInit(): void {
     this.syncLayoutWithViewport();
+    this.disableLogout = this.customerAuthService.isDirectAccessLogin();
 
     this.chatbotService.currentSession$.subscribe((session) => {
       this.ngZone.run(() => {
@@ -136,6 +138,10 @@ export class ChatbotComponent implements OnInit {
   }
 
   logout(): void {
+    if (this.disableLogout) {
+      return;
+    }
+
     this.customerAuthService.clearCredentials();
     this.chatbotService.resetLocalState();
     void this.router.navigate(['/login']);

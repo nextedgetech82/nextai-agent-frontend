@@ -45,6 +45,14 @@
   color: #6c757d;
 }
 
+.error-card {
+  border-color: rgba(220, 53, 69, 0.14);
+}
+
+.error-icon {
+  background: linear-gradient(135deg, #dc3545, #fd7e14);
+}
+
 .login-form .form-label {
   font-weight: 600;
 }

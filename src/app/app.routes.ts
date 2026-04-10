@@ -8,6 +8,7 @@ import { TokenUsageComponent } from './components/token-usage/token-usage';
 export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
   { path: 'login', component: CustomerLoginComponent },
+  { path: 'login/:customerId', component: CustomerLoginComponent },
   { path: 'chat', component: ChatbotComponent, canActivate: [customerAuthGuard] },
   { path: 'usage', component: TokenUsageComponent },
   { path: 'dashboard', component: AnalyticsDashboardComponent },

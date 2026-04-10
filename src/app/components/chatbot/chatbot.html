@@ -68,7 +68,11 @@
         <button class="btn btn-outline-primary btn-sm" (click)="goToUsage()">
           <i class="bi bi-speedometer2"></i> Usage
         </button>
-        <button class="btn btn-outline-secondary btn-sm logout-button" (click)="logout()">
+        <button
+          class="btn btn-outline-secondary btn-sm logout-button"
+          (click)="logout()"
+          [disabled]="disableLogout"
+        >
           <i class="bi bi-box-arrow-right"></i> Logout
         </button>
       </div>

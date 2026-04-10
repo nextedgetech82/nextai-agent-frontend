@@ -166,7 +166,7 @@ export class AnalyticsService {
       .pipe(timeout(10000), catchError(this.handleError));
   }
 
-  private handleError(error: HttpErrorResponse | Error) {
+  private handleError = (error: HttpErrorResponse | Error) => {
     let errorMessage = 'An error occurred while processing your request';
 
     if (error instanceof HttpErrorResponse && error.error instanceof ErrorEvent) {
@@ -174,12 +174,73 @@ export class AnalyticsService {
     } else if (error.name === 'TimeoutError') {
       errorMessage = 'The analytics request took too long. Please try again in a moment.';
     } else if (error instanceof HttpErrorResponse) {
-      errorMessage = error.error?.error || error.message;
+      errorMessage = this.extractHttpErrorMessage(error);
     } else {
       errorMessage = error.message;
     }
 
     console.error('API Error:', error);
     return throwError(() => new Error(errorMessage));
+  };
+
+  private extractHttpErrorMessage(error: HttpErrorResponse): string {
+    const errorBody: unknown = error.error;
+
+    if (typeof errorBody === 'string') {
+      const parsedHtmlMessage = this.extractHtmlErrorMessage(errorBody);
+      if (parsedHtmlMessage) {
+        return parsedHtmlMessage;
+      }
+    }
+
+    if (typeof errorBody === 'object' && errorBody !== null) {
+      const body = errorBody as Record<string, unknown>;
+      const message =
+        this.asReadableString(body['message']) ||
+        this.asReadableString(body['error']) ||
+        this.asReadableString(body['details']) ||
+        this.asReadableString(body['stack']);
+
+      if (message) {
+        return message;
+      }
+
+      try {
+        return JSON.stringify(errorBody);
+      } catch {}
+    }
+
+    return error.message || 'An error occurred while processing your request';
+  }
+
+  private extractHtmlErrorMessage(html: string): string | null {
+    const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+    const title = titleMatch?.[1]?.trim();
+
+    const bodyText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (bodyText) {
+      return bodyText.length > 220 ? `${bodyText.slice(0, 217)}...` : bodyText;
+    }
+
+    return title || null;
+  }
+
+  private asReadableString(value: unknown): string | null {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      return trimmed || null;
+    }
+
+    if (typeof value === 'number' || typeof value === 'boolean') {
+      return String(value);
+    }
+
+    return null;
   }
 }

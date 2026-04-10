@@ -75,6 +75,7 @@ export class ChatbotService {
 
     this.clearStoredCurrentSessionId();
     this.ngZone.run(() => {
+      this.sessionsSubject.next(this.sessionsSubject.value.filter((session) => !!session.id));
       this.currentSessionSubject.next(draftSession);
     });
 
@@ -113,7 +114,17 @@ export class ChatbotService {
       messages: [...activeSession.messages, userChatMessage, loadingMessage],
       updatedAt: new Date(),
     };
-    this.upsertSession(optimisticSession);
+
+    if (optimisticSession.id) {
+      this.upsertSession(optimisticSession);
+    } else {
+      this.ngZone.run(() => {
+        this.currentSessionSubject.next({
+          ...optimisticSession,
+          messages: [...optimisticSession.messages],
+        });
+      });
+    }
 
     try {
       const response = await firstValueFrom(
@@ -169,7 +180,10 @@ export class ChatbotService {
         this.upsertSession(failedSession);
       } else {
         this.ngZone.run(() => {
-          this.currentSessionSubject.next(failedSession);
+          this.currentSessionSubject.next({
+            ...failedSession,
+            messages: [...failedSession.messages],
+          });
         });
       }
     }
